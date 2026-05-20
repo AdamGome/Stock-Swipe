@@ -24,95 +24,105 @@ type StockData = {
   riskLevel: string;
   summary: string;
   breakdown: string;
-  dataSource: "live" | "cached" | "fallback";
+  dataSource: "live" | "cached";
   warning?: string;
 };
 
-const fallbackStocks: Record<string, StockData> = {
-  AAPL: {
-    ticker: "AAPL",
-    name: "Apple Inc.",
-    price: 195,
-    change: "+1.20%",
-    changeDollar: "+$2.31",
-    previousClose: "192.69",
-    latestTradingDay: "Sample",
-    sector: "Technology",
-    industry: "Consumer Electronics",
-    marketCap: "$3T+",
-    peRatio: "High 20s",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "Low",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "Medium",
-    summary:
-      "Apple makes iPhones, Macs, iPads, wearables, and services like iCloud, Apple Music, and the App Store.",
-    breakdown:
-      "Apple is one of the largest consumer technology companies in the world. Its business is built around hardware like the iPhone, Mac, and iPad, plus services like the App Store, iCloud, and Apple Music. Investors often watch iPhone sales, services growth, margins, and demand in major markets.",
-    dataSource: "fallback",
-    warning: "Fallback data is being used.",
-  },
-  MSFT: {
-    ticker: "MSFT",
-    name: "Microsoft Corporation",
-    price: 425,
-    change: "+0.85%",
-    changeDollar: "+$3.58",
-    previousClose: "421.42",
-    latestTradingDay: "Sample",
-    sector: "Technology",
-    industry: "Software",
-    marketCap: "$3T+",
-    peRatio: "High 30s",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "Low",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "Medium",
-    summary:
-      "Microsoft sells software, cloud services, gaming products, LinkedIn services, and AI tools.",
-    breakdown:
-      "Microsoft is a major software and cloud company. Investors often watch Azure cloud growth, Office and Microsoft 365 subscriptions, AI adoption, and enterprise demand.",
-    dataSource: "fallback",
-    warning: "Fallback data is being used.",
-  },
-  NVDA: {
-    ticker: "NVDA",
-    name: "NVIDIA Corporation",
-    price: 120,
-    change: "+2.10%",
-    changeDollar: "+$2.47",
-    previousClose: "117.53",
-    latestTradingDay: "Sample",
-    sector: "Technology",
-    industry: "Semiconductors",
-    marketCap: "$2T+",
-    peRatio: "High",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "Very low",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "High",
-    summary:
-      "NVIDIA designs chips used for AI, gaming, data centers, robotics, and professional graphics.",
-    breakdown:
-      "NVIDIA is a leading semiconductor company. Investors often watch AI chip demand, data center revenue, margins, and competition.",
-    dataSource: "fallback",
-    warning: "Fallback data is being used.",
-  },
+type TwelveQuote = {
+  symbol?: string;
+  name?: string;
+  exchange?: string;
+  currency?: string;
+  datetime?: string;
+  timestamp?: number;
+  open?: string;
+  high?: string;
+  low?: string;
+  close?: string;
+  volume?: string;
+  previous_close?: string;
+  change?: string;
+  percent_change?: string;
+  average_volume?: string;
+  fifty_two_week?: {
+    low?: string;
+    high?: string;
+    range?: string;
+  };
+  status?: string;
+  message?: string;
+};
+
+type TwelveProfile = {
+  name?: string;
+  company_name?: string;
+  sector?: string;
+  industry?: string;
+  description?: string;
+  market_cap?: string | number;
+  pe_ratio?: string | number;
+  eps?: string | number;
+  beta?: string | number;
+  dividend_yield?: string | number;
+  status?: string;
+  message?: string;
+};
+
+type FmpProfile = {
+  symbol?: string;
+  companyName?: string;
+  price?: number;
+  beta?: number;
+  volAvg?: number;
+  mktCap?: number;
+  lastDiv?: number;
+  range?: string;
+  changes?: number;
+  companyNameLong?: string;
+  currency?: string;
+  cik?: string;
+  isin?: string;
+  cusip?: string;
+  exchange?: string;
+  exchangeShortName?: string;
+  industry?: string;
+  website?: string;
+  description?: string;
+  ceo?: string;
+  sector?: string;
+  country?: string;
+  fullTimeEmployees?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  ipoDate?: string;
+};
+
+type FmpQuote = {
+  symbol?: string;
+  name?: string;
+  price?: number;
+  changesPercentage?: number;
+  change?: number;
+  dayLow?: number;
+  dayHigh?: number;
+  yearHigh?: number;
+  yearLow?: number;
+  marketCap?: number;
+  priceAvg50?: number;
+  priceAvg200?: number;
+  exchange?: string;
+  volume?: number;
+  avgVolume?: number;
+  open?: number;
+  previousClose?: number;
+  eps?: number;
+  pe?: number;
+  earningsAnnouncement?: string;
+  sharesOutstanding?: number;
+  timestamp?: number;
 };
 
 function todayKey() {
@@ -124,22 +134,23 @@ function isUpdatedToday(value?: string | null) {
   return value.slice(0, 10) === todayKey();
 }
 
-function formatCurrency(value: string | number | undefined) {
-  if (value === undefined || value === "") return "N/A";
-
+function toNumber(value: unknown) {
   const numberValue = Number(value);
+  return Number.isNaN(numberValue) ? null : numberValue;
+}
 
-  if (Number.isNaN(numberValue)) return "N/A";
+function formatCurrency(value: unknown) {
+  const numberValue = toNumber(value);
+
+  if (numberValue === null) return "N/A";
 
   return `$${numberValue.toFixed(2)}`;
 }
 
-function formatLargeNumber(value: string | number | undefined) {
-  if (value === undefined || value === "") return "N/A";
+function formatLargeNumber(value: unknown) {
+  const numberValue = toNumber(value);
 
-  const numberValue = Number(value);
-
-  if (Number.isNaN(numberValue)) return "N/A";
+  if (numberValue === null) return "N/A";
 
   if (numberValue >= 1_000_000_000_000) {
     return `$${(numberValue / 1_000_000_000_000).toFixed(2)}T`;
@@ -156,52 +167,94 @@ function formatLargeNumber(value: string | number | undefined) {
   return `$${numberValue.toLocaleString()}`;
 }
 
-function estimateRiskLevel(beta: string | undefined, peRatio: string | undefined) {
-  const betaNumber = Number(beta);
-  const peNumber = Number(peRatio);
+function formatPercent(value: unknown) {
+  const numberValue = toNumber(value);
 
-  if (!Number.isNaN(betaNumber) && betaNumber >= 1.5) return "High";
-  if (!Number.isNaN(peNumber) && peNumber >= 50) return "High";
-  if (!Number.isNaN(betaNumber) && betaNumber <= 0.9) return "Low";
+  if (numberValue === null) return "N/A";
+
+  return `${numberValue.toFixed(2)}%`;
+}
+
+function formatRatio(value: unknown) {
+  const numberValue = toNumber(value);
+
+  if (numberValue === null || numberValue <= 0) return "N/A";
+
+  return numberValue.toFixed(2);
+}
+
+function formatInteger(value: unknown) {
+  const numberValue = toNumber(value);
+
+  if (numberValue === null) return "N/A";
+
+  return Math.round(numberValue).toLocaleString();
+}
+
+function formatDividendYield(profileValue: unknown, lastDividend: unknown, price: number) {
+  const profileNumber = toNumber(profileValue);
+
+  if (profileNumber !== null && profileNumber > 0) {
+    if (profileNumber < 1) {
+      return `${(profileNumber * 100).toFixed(2)}%`;
+    }
+
+    return `${profileNumber.toFixed(2)}%`;
+  }
+
+  const lastDividendNumber = toNumber(lastDividend);
+
+  if (lastDividendNumber !== null && lastDividendNumber > 0 && price > 0) {
+    return `${((lastDividendNumber / price) * 100).toFixed(2)}%`;
+  }
+
+  return "N/A";
+}
+
+function estimateRiskLevel(betaValue: unknown, peValue: unknown) {
+  const beta = toNumber(betaValue);
+  const pe = toNumber(peValue);
+
+  if (beta !== null && beta >= 1.5) return "High";
+  if (pe !== null && pe >= 50) return "High";
+  if (beta !== null && beta <= 0.9) return "Low";
 
   return "Medium";
 }
 
-function getFallbackStock(symbol: string): StockData {
-  const upperSymbol = symbol.toUpperCase();
+function cleanSignedPercent(value: unknown) {
+  const numberValue = toNumber(value);
 
-  if (fallbackStocks[upperSymbol]) {
-    return fallbackStocks[upperSymbol];
-  }
+  if (numberValue === null) return "+0.00%";
 
-  return {
-    ticker: upperSymbol,
-    name: `${upperSymbol} Corporation`,
-    price: 100,
-    change: "+0.00%",
-    changeDollar: "$0.00",
-    previousClose: "100.00",
-    latestTradingDay: "Sample",
-    sector: "Unknown",
-    industry: "Unknown",
-    marketCap: "N/A",
-    peRatio: "N/A",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "N/A",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "Research",
-    summary:
-      "This ticker is available in the app, but detailed fallback data is limited.",
-    breakdown:
-      "Research this company using the Yahoo Finance link and recent filings before making any decisions.",
-    dataSource: "fallback",
-    warning: "Fallback data is being used.",
-  };
+  if (numberValue > 0) return `+${numberValue.toFixed(2)}%`;
+
+  return `${numberValue.toFixed(2)}%`;
+}
+
+function cleanSignedMoney(value: unknown) {
+  const numberValue = toNumber(value);
+
+  if (numberValue === null) return "$0.00";
+
+  if (numberValue > 0) return `+$${Math.abs(numberValue).toFixed(2)}`;
+  if (numberValue < 0) return `-$${Math.abs(numberValue).toFixed(2)}`;
+
+  return "$0.00";
+}
+
+function getRangeLow(range?: string) {
+  if (!range) return "N/A";
+
+  const parts = range.split("-").map((part) => part.trim());
+  return parts[0] ? formatCurrency(parts[0]) : "N/A";
+}
+
+function getRangeHigh(range?: string) {
+  if (!range) return "N/A";
+
+  const parts = range.split("-").map((part) => part.trim());
+  return parts[1] ? formatCurrency(parts[1]) : "N/A";
 }
 
 async function getCachedStock(symbol: string) {
@@ -264,7 +317,7 @@ async function saveStockCache(symbol: string, stockData: StockData) {
   }
 }
 
-async function fetchTwelveDataStock(symbol: string): Promise<StockData> {
+async function fetchTwelveData(symbol: string) {
   const apiKey = process.env.TWELVE_DATA_API_KEY;
 
   if (!apiKey || apiKey === "your_twelve_data_key_here") {
@@ -279,80 +332,152 @@ async function fetchTwelveDataStock(symbol: string): Promise<StockData> {
     fetch(profileUrl, { cache: "no-store" }),
   ]);
 
-  const quoteData = await quoteResponse.json();
-  const profileData = await profileResponse.json();
+  const quoteData = (await quoteResponse.json()) as TwelveQuote;
+  const profileData = (await profileResponse.json()) as TwelveProfile;
 
   if (quoteData.status === "error") {
     throw new Error(quoteData.message || "Twelve Data quote error.");
   }
 
-  const price = Number(quoteData.close || quoteData.price || quoteData.previous_close);
-  const previousClose = Number(quoteData.previous_close);
-  const changeNumber = Number(quoteData.change || 0);
-  const percentChange = Number(quoteData.percent_change || 0);
+  if (!quoteData.close && !quoteData.previous_close) {
+    throw new Error("No Twelve Data quote returned.");
+  }
 
-  const signedChangeDollar =
-    changeNumber > 0
-      ? `+$${Math.abs(changeNumber).toFixed(2)}`
-      : changeNumber < 0
-      ? `-$${Math.abs(changeNumber).toFixed(2)}`
-      : "$0.00";
+  return {
+    quote: quoteData,
+    profile: profileData.status === "error" ? null : profileData,
+  };
+}
 
-  const signedPercent =
-    percentChange > 0
-      ? `+${percentChange.toFixed(2)}%`
-      : `${percentChange.toFixed(2)}%`;
+async function fetchFmpData(symbol: string) {
+  const apiKey = process.env.FMP_API_KEY;
+
+  if (!apiKey || apiKey === "your_fmp_key") {
+    return {
+      profile: null,
+      quote: null,
+    };
+  }
+
+  const profileUrl = `https://financialmodelingprep.com/api/v3/profile/${symbol}?apikey=${apiKey}`;
+  const quoteUrl = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`;
+
+  const [profileResponse, quoteResponse] = await Promise.all([
+    fetch(profileUrl, { cache: "no-store" }),
+    fetch(quoteUrl, { cache: "no-store" }),
+  ]);
+
+  const profileJson = await profileResponse.json();
+  const quoteJson = await quoteResponse.json();
+
+  const profile =
+    Array.isArray(profileJson) && profileJson.length > 0
+      ? (profileJson[0] as FmpProfile)
+      : null;
+
+  const quote =
+    Array.isArray(quoteJson) && quoteJson.length > 0
+      ? (quoteJson[0] as FmpQuote)
+      : null;
+
+  return {
+    profile,
+    quote,
+  };
+}
+
+async function fetchMergedStock(symbol: string): Promise<StockData> {
+  const [twelveData, fmpData] = await Promise.all([
+    fetchTwelveData(symbol),
+    fetchFmpData(symbol),
+  ]);
+
+  const twelveQuote = twelveData.quote;
+  const twelveProfile = twelveData.profile;
+  const fmpProfile = fmpData.profile;
+  const fmpQuote = fmpData.quote;
+
+  const price =
+    toNumber(twelveQuote.close) ??
+    toNumber(fmpQuote?.price) ??
+    toNumber(twelveQuote.previous_close) ??
+    0;
+
+  const change =
+    toNumber(twelveQuote.percent_change) ?? toNumber(fmpQuote?.changesPercentage) ?? 0;
+
+  const changeDollar =
+    toNumber(twelveQuote.change) ?? toNumber(fmpQuote?.change) ?? 0;
+
+  const peRatio = fmpQuote?.pe ?? twelveProfile?.pe_ratio;
+  const eps = fmpQuote?.eps ?? twelveProfile?.eps;
+  const beta = fmpProfile?.beta ?? twelveProfile?.beta;
+
+  const marketCap = fmpQuote?.marketCap ?? fmpProfile?.mktCap ?? twelveProfile?.market_cap;
 
   const name =
-    quoteData.name ||
-    profileData.name ||
-    profileData.company_name ||
+    fmpProfile?.companyName ||
+    fmpQuote?.name ||
+    twelveQuote.name ||
+    twelveProfile?.name ||
+    twelveProfile?.company_name ||
     `${symbol} Corporation`;
 
-  const sector = profileData.sector || "Unknown";
-  const industry = profileData.industry || "Unknown";
+  const sector = fmpProfile?.sector || twelveProfile?.sector || "Unknown";
+  const industry = fmpProfile?.industry || twelveProfile?.industry || "Unknown";
+
+  const description =
+    fmpProfile?.description ||
+    twelveProfile?.description ||
+    `${name} is a publicly traded company in the ${sector} sector.`;
+
+  const fiftyTwoWeekHigh =
+    twelveQuote.fifty_two_week?.high
+      ? formatCurrency(twelveQuote.fifty_two_week.high)
+      : fmpQuote?.yearHigh
+      ? formatCurrency(fmpQuote.yearHigh)
+      : getRangeHigh(fmpProfile?.range);
+
+  const fiftyTwoWeekLow =
+    twelveQuote.fifty_two_week?.low
+      ? formatCurrency(twelveQuote.fifty_two_week.low)
+      : fmpQuote?.yearLow
+      ? formatCurrency(fmpQuote.yearLow)
+      : getRangeLow(fmpProfile?.range);
 
   return {
     ticker: symbol,
     name,
-    price: Number.isNaN(price) ? 0 : Number(price.toFixed(2)),
-    change: signedPercent,
-    changeDollar: signedChangeDollar,
-    previousClose: Number.isNaN(previousClose)
-      ? "N/A"
-      : formatCurrency(previousClose),
+    price: Number(price.toFixed(2)),
+    change: cleanSignedPercent(change),
+    changeDollar: cleanSignedMoney(changeDollar),
+    previousClose: formatCurrency(
+      twelveQuote.previous_close ?? fmpQuote?.previousClose
+    ),
     latestTradingDay:
-      quoteData.datetime ||
-      quoteData.timestamp ||
-      new Date().toISOString().slice(0, 10),
+      twelveQuote.datetime ||
+      (fmpQuote?.timestamp
+        ? new Date(fmpQuote.timestamp * 1000).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10)),
     sector,
     industry,
-    marketCap: formatLargeNumber(profileData.market_cap),
-    peRatio: profileData.pe_ratio ? String(profileData.pe_ratio) : "N/A",
-    eps: profileData.eps ? String(profileData.eps) : "N/A",
+    marketCap: formatLargeNumber(marketCap),
+    peRatio: formatRatio(peRatio),
+    eps: formatRatio(eps),
     profitMargin: "N/A",
-    dividendYield: profileData.dividend_yield
-      ? `${Number(profileData.dividend_yield).toFixed(2)}%`
-      : "N/A",
-    beta: profileData.beta ? String(profileData.beta) : "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: quoteData.fifty_two_week?.high
-      ? formatCurrency(quoteData.fifty_two_week.high)
-      : "N/A",
-    fiftyTwoWeekLow: quoteData.fifty_two_week?.low
-      ? formatCurrency(quoteData.fifty_two_week.low)
-      : "N/A",
-    volume: quoteData.volume ? String(quoteData.volume) : "N/A",
-    riskLevel: estimateRiskLevel(
-      profileData.beta ? String(profileData.beta) : undefined,
-      profileData.pe_ratio ? String(profileData.pe_ratio) : undefined
+    dividendYield: formatDividendYield(
+      twelveProfile?.dividend_yield,
+      fmpProfile?.lastDiv,
+      price
     ),
-    summary:
-      profileData.description ||
-      `${name} is a publicly traded company in the ${sector} sector.`,
-    breakdown:
-      profileData.description ||
-      `${name} is a publicly traded company in the ${sector} sector. Review revenue, earnings, valuation, risk, and recent news before making decisions.`,
+    beta: formatRatio(beta),
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh,
+    fiftyTwoWeekLow,
+    volume: formatInteger(twelveQuote.volume ?? fmpQuote?.volume),
+    riskLevel: estimateRiskLevel(beta, peRatio),
+    summary: description,
+    breakdown: description,
     dataSource: "live",
   };
 }
@@ -377,7 +502,7 @@ export async function GET(request: Request) {
       return NextResponse.json(cachedStock);
     }
 
-    const liveStock = await fetchTwelveDataStock(symbol);
+    const liveStock = await fetchMergedStock(symbol);
 
     await saveStockCache(symbol, liveStock);
 
@@ -392,12 +517,12 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-    {
-    error: "Real stock data is unavailable for this symbol right now.",
-    symbol,
-    dataSource: "unavailable",
-    },
-  { status: 503 }
-);
+      {
+        error: "Real stock data is unavailable for this symbol right now.",
+        symbol,
+        dataSource: "unavailable",
+      },
+      { status: 503 }
+    );
   }
 }
