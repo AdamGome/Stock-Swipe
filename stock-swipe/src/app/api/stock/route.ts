@@ -22,8 +22,16 @@ type AlphaOverviewResponse = {
   Name?: string;
   Description?: string;
   Sector?: string;
+  Industry?: string;
   MarketCapitalization?: string;
   PERatio?: string;
+  EPS?: string;
+  ProfitMargin?: string;
+  DividendYield?: string;
+  Beta?: string;
+  AnalystTargetPrice?: string;
+  "52WeekHigh"?: string;
+  "52WeekLow"?: string;
   Note?: string;
   Information?: string;
   Error?: string;
@@ -38,8 +46,16 @@ type StockResponse = {
   previousClose: string;
   latestTradingDay: string;
   sector: string;
+  industry: string;
   marketCap: string;
   peRatio: string;
+  eps: string;
+  profitMargin: string;
+  dividendYield: string;
+  beta: string;
+  analystTargetPrice: string;
+  fiftyTwoWeekHigh: string;
+  fiftyTwoWeekLow: string;
   volume: string;
   riskLevel: string;
   summary: string;
@@ -71,8 +87,16 @@ const fallbackStocks: Record<string, StockResponse> = {
     previousClose: "192.69",
     latestTradingDay: "Sample",
     sector: "Technology",
+    industry: "Consumer Electronics",
     marketCap: "$3T+",
     peRatio: "High 20s",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "Low",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
     volume: "N/A",
     riskLevel: "Medium",
     summary:
@@ -89,9 +113,17 @@ const fallbackStocks: Record<string, StockResponse> = {
     changeDollar: "+$3.74",
     previousClose: "416.26",
     latestTradingDay: "Sample",
-    sector: "Technology / Cloud",
+    sector: "Technology",
+    industry: "Software Infrastructure",
     marketCap: "$3T+",
     peRatio: "High 30s",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "Low",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
     volume: "N/A",
     riskLevel: "Medium",
     summary:
@@ -108,9 +140,17 @@ const fallbackStocks: Record<string, StockResponse> = {
     changeDollar: "+$25.06",
     previousClose: "894.94",
     latestTradingDay: "Sample",
-    sector: "Semiconductors / AI",
+    sector: "Technology",
+    industry: "Semiconductors",
     marketCap: "$2T+",
     peRatio: "High",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "Very low",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
     volume: "N/A",
     riskLevel: "High",
     summary:
@@ -127,9 +167,17 @@ const fallbackStocks: Record<string, StockResponse> = {
     changeDollar: "-$1.97",
     previousClose: "178.97",
     latestTradingDay: "Sample",
-    sector: "Electric Vehicles",
+    sector: "Consumer Cyclical",
+    industry: "Auto Manufacturers",
     marketCap: "$500B+",
     peRatio: "High",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "None",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
     volume: "N/A",
     riskLevel: "High",
     summary:
@@ -146,9 +194,17 @@ const fallbackStocks: Record<string, StockResponse> = {
     changeDollar: "+$2.36",
     previousClose: "157.64",
     latestTradingDay: "Sample",
-    sector: "Semiconductors",
+    sector: "Technology",
+    industry: "Semiconductors",
     marketCap: "$250B+",
     peRatio: "High",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "None",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
     volume: "N/A",
     riskLevel: "High",
     summary:
@@ -196,8 +252,16 @@ function getFallbackStock(symbol: string, warning?: string): StockResponse {
     previousClose: "N/A",
     latestTradingDay: "N/A",
     sector: "Unknown",
+    industry: "Unknown",
     marketCap: "N/A",
     peRatio: "N/A",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "N/A",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
     volume: "N/A",
     riskLevel: "Research",
     summary:
@@ -282,6 +346,42 @@ function cleanPERatio(value?: string) {
   return numberValue.toFixed(1);
 }
 
+function cleanNumberText(value?: string, decimals = 2) {
+  const cleaned = cleanText(value);
+
+  if (!cleaned) return "N/A";
+
+  const numberValue = Number(cleaned);
+
+  if (Number.isNaN(numberValue)) return cleaned;
+
+  return numberValue.toFixed(decimals);
+}
+
+function cleanDollarValue(value?: string) {
+  const cleaned = cleanText(value);
+
+  if (!cleaned) return "N/A";
+
+  const numberValue = Number(cleaned);
+
+  if (Number.isNaN(numberValue)) return "N/A";
+
+  return `$${numberValue.toFixed(2)}`;
+}
+
+function cleanPercentDecimal(value?: string) {
+  const cleaned = cleanText(value);
+
+  if (!cleaned) return "N/A";
+
+  const numberValue = Number(cleaned);
+
+  if (Number.isNaN(numberValue)) return cleaned;
+
+  return `${(numberValue * 100).toFixed(2)}%`;
+}
+
 function shortenDescription(description?: string, fallback?: string) {
   const cleaned = cleanText(description);
 
@@ -297,13 +397,18 @@ function shortenDescription(description?: string, fallback?: string) {
   return `${text.slice(0, 180)}...`;
 }
 
-function calculateRiskLevel(peRatio: string, changePercent: string) {
+function calculateRiskLevel(peRatio: string, changePercent: string, beta: string) {
   const pe = Number(peRatio);
   const change = Math.abs(
     Number(changePercent.replace("%", "").replace("+", ""))
   );
+  const betaValue = Number(beta);
 
   if (!Number.isNaN(change) && change >= 4) {
+    return "High";
+  }
+
+  if (!Number.isNaN(betaValue) && betaValue >= 1.5) {
     return "High";
   }
 
@@ -312,6 +417,10 @@ function calculateRiskLevel(peRatio: string, changePercent: string) {
   }
 
   if (!Number.isNaN(pe) && pe >= 30) {
+    return "Medium";
+  }
+
+  if (!Number.isNaN(betaValue) && betaValue >= 1.1) {
     return "Medium";
   }
 
@@ -411,23 +520,56 @@ export async function GET(request: Request) {
     const change = cleanChangePercent(quote["10. change percent"]);
     const changeDollar = cleanDollarChange(quote["09. change"]);
     const peRatio = cleanPERatio(overviewData.PERatio);
-    const riskLevel = calculateRiskLevel(peRatio, change);
+    const beta = cleanNumberText(overviewData.Beta, 2);
+    const riskLevel = calculateRiskLevel(peRatio, change, beta);
+
+    const liveMarketCap = formatMarketCap(overviewData.MarketCapitalization);
 
     const stock: StockResponse = {
       ticker: symbol,
       name: cleanText(overviewData.Name) || fallback?.name || symbol,
-      price: Number.isNaN(price) ? fallback?.price || 0 : Number(price.toFixed(2)),
+      price: Number.isNaN(price)
+        ? fallback?.price || 0
+        : Number(price.toFixed(2)),
       change,
       changeDollar,
-      previousClose: quote["08. previous close"] || fallback?.previousClose || "N/A",
+      previousClose:
+        cleanDollarValue(quote["08. previous close"]) ||
+        fallback?.previousClose ||
+        "N/A",
       latestTradingDay:
         quote["07. latest trading day"] || fallback?.latestTradingDay || "N/A",
       sector: cleanText(overviewData.Sector) || fallback?.sector || "Unknown",
+      industry:
+        cleanText(overviewData.Industry) || fallback?.industry || "Unknown",
       marketCap:
-        formatMarketCap(overviewData.MarketCapitalization) !== "N/A"
-          ? formatMarketCap(overviewData.MarketCapitalization)
-          : fallback?.marketCap || "N/A",
+        liveMarketCap !== "N/A" ? liveMarketCap : fallback?.marketCap || "N/A",
       peRatio: peRatio !== "N/A" ? peRatio : fallback?.peRatio || "N/A",
+      eps:
+        cleanNumberText(overviewData.EPS, 2) !== "N/A"
+          ? cleanNumberText(overviewData.EPS, 2)
+          : fallback?.eps || "N/A",
+      profitMargin:
+        cleanPercentDecimal(overviewData.ProfitMargin) !== "N/A"
+          ? cleanPercentDecimal(overviewData.ProfitMargin)
+          : fallback?.profitMargin || "N/A",
+      dividendYield:
+        cleanPercentDecimal(overviewData.DividendYield) !== "N/A"
+          ? cleanPercentDecimal(overviewData.DividendYield)
+          : fallback?.dividendYield || "N/A",
+      beta: beta !== "N/A" ? beta : fallback?.beta || "N/A",
+      analystTargetPrice:
+        cleanDollarValue(overviewData.AnalystTargetPrice) !== "N/A"
+          ? cleanDollarValue(overviewData.AnalystTargetPrice)
+          : fallback?.analystTargetPrice || "N/A",
+      fiftyTwoWeekHigh:
+        cleanDollarValue(overviewData["52WeekHigh"]) !== "N/A"
+          ? cleanDollarValue(overviewData["52WeekHigh"])
+          : fallback?.fiftyTwoWeekHigh || "N/A",
+      fiftyTwoWeekLow:
+        cleanDollarValue(overviewData["52WeekLow"]) !== "N/A"
+          ? cleanDollarValue(overviewData["52WeekLow"])
+          : fallback?.fiftyTwoWeekLow || "N/A",
       volume: quote["06. volume"] || fallback?.volume || "N/A",
       riskLevel,
       summary: shortenDescription(overviewData.Description, fallback?.summary),
