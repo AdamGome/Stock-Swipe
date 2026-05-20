@@ -1,213 +1,267 @@
 import { NextResponse } from "next/server";
-
-export const dynamic = "force-dynamic";
+import { supabaseServer } from "../../../lib/supabaseServer";
 
 type ChartRange = "1D" | "1W" | "1M" | "3M" | "1Y";
 
-type AlphaDailyResponse = {
-  "Time Series (Daily)"?: Record<
-    string,
-    {
-      "1. open"?: string;
-      "2. high"?: string;
-      "3. low"?: string;
-      "4. close"?: string;
-      "5. volume"?: string;
-    }
-  >;
-  Note?: string;
-  Information?: string;
-  Error?: string;
+type ChartPoint = {
+  datetime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+type ChartStats = {
+  start: number;
+  end: number;
+  high: number;
+  low: number;
+  change: number;
+  changePercent: number;
 };
 
 type ChartResponse = {
   symbol: string;
-  dataSource: "live" | "cached" | "fallback";
-  chartData: Partial<Record<ChartRange, number[]>>;
+  dataSource: "live" | "cached";
+  chartData: Record<ChartRange, number[]>;
+  chartPoints: Record<ChartRange, ChartPoint[]>;
+  stats: Record<ChartRange, ChartStats>;
+  updatedAt: string;
   warning?: string;
 };
 
-const CACHE_TIME = 1000 * 60 * 60 * 6;
-const BLOCK_ALPHA_TIME = 1000 * 60 * 60;
-
-let alphaChartBlockedUntil = 0;
-
-const chartCache = new Map<
-  string,
-  {
-    savedAt: number;
-    chart: ChartResponse;
-  }
->();
-
-const fallbackBasePrices: Record<string, number> = {
-  AAPL: 195,
-  MSFT: 420,
-  NVDA: 920,
-  TSLA: 177,
-  AMD: 160,
-  GOOGL: 170,
-  AMZN: 185,
-  META: 500,
-  NFLX: 650,
-  PLTR: 25,
-  SOFI: 8,
-  COIN: 220,
-  SHOP: 70,
-  DIS: 100,
-  JPM: 200,
-};
-
-function isLimitMessage(data: AlphaDailyResponse) {
-  const message = data.Note || data.Information || data.Error || "";
-
-  return (
-    message.toLowerCase().includes("api") ||
-    message.toLowerCase().includes("limit") ||
-    message.toLowerCase().includes("rate") ||
-    message.toLowerCase().includes("frequency") ||
-    message.toLowerCase().includes("premium")
-  );
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function createFallbackSeries(basePrice: number, isPositive = true) {
-  if (isPositive) {
+function isUpdatedToday(value?: string | null) {
+  if (!value) return false;
+  return value.slice(0, 10) === todayKey();
+}
+
+function toNumber(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isNaN(numberValue) ? 0 : numberValue;
+}
+
+function normalizeTimeSeries(values: unknown): ChartPoint[] {
+  if (!Array.isArray(values)) return [];
+
+  return values
+    .map((item) => {
+      const point = item as {
+        datetime?: string;
+        open?: string;
+        high?: string;
+        low?: string;
+        close?: string;
+        volume?: string;
+      };
+
+      return {
+        datetime: point.datetime || "",
+        open: toNumber(point.open),
+        high: toNumber(point.high),
+        low: toNumber(point.low),
+        close: toNumber(point.close),
+        volume: toNumber(point.volume),
+      };
+    })
+    .filter((point) => point.datetime && point.close > 0)
+    .reverse();
+}
+
+function sliceLast(points: ChartPoint[], count: number) {
+  return points.slice(Math.max(points.length - count, 0));
+}
+
+function getStats(points: ChartPoint[]): ChartStats {
+  if (points.length === 0) {
     return {
-      "1D": [
-        basePrice * 0.985,
-        basePrice * 0.99,
-        basePrice * 0.988,
-        basePrice * 0.996,
-        basePrice * 1.002,
-        basePrice,
-      ],
-      "1W": [
-        basePrice * 0.96,
-        basePrice * 0.97,
-        basePrice * 0.965,
-        basePrice * 0.985,
-        basePrice * 0.995,
-        basePrice,
-      ],
-      "1M": [
-        basePrice * 0.92,
-        basePrice * 0.94,
-        basePrice * 0.935,
-        basePrice * 0.965,
-        basePrice * 0.985,
-        basePrice,
-      ],
-      "3M": [
-        basePrice * 0.88,
-        basePrice * 0.9,
-        basePrice * 0.93,
-        basePrice * 0.95,
-        basePrice * 0.98,
-        basePrice,
-      ],
-      "1Y": [
-        basePrice * 0.75,
-        basePrice * 0.82,
-        basePrice * 0.86,
-        basePrice * 0.91,
-        basePrice * 0.96,
-        basePrice,
-      ],
+      start: 0,
+      end: 0,
+      high: 0,
+      low: 0,
+      change: 0,
+      changePercent: 0,
     };
   }
 
+  const start = points[0].close;
+  const end = points[points.length - 1].close;
+  const high = Math.max(...points.map((point) => point.high || point.close));
+  const low = Math.min(...points.map((point) => point.low || point.close));
+  const change = end - start;
+  const changePercent = start === 0 ? 0 : (change / start) * 100;
+
   return {
-    "1D": [
-      basePrice * 1.015,
-      basePrice * 1.01,
-      basePrice * 1.012,
-      basePrice * 1.006,
-      basePrice * 1.002,
-      basePrice,
-    ],
-    "1W": [
-      basePrice * 1.06,
-      basePrice * 1.05,
-      basePrice * 1.04,
-      basePrice * 1.025,
-      basePrice * 1.01,
-      basePrice,
-    ],
-    "1M": [
-      basePrice * 1.12,
-      basePrice * 1.09,
-      basePrice * 1.07,
-      basePrice * 1.04,
-      basePrice * 1.02,
-      basePrice,
-    ],
-    "3M": [
-      basePrice * 1.18,
-      basePrice * 1.15,
-      basePrice * 1.1,
-      basePrice * 1.07,
-      basePrice * 1.03,
-      basePrice,
-    ],
-    "1Y": [
-      basePrice * 1.25,
-      basePrice * 1.2,
-      basePrice * 1.15,
-      basePrice * 1.1,
-      basePrice * 1.05,
-      basePrice,
-    ],
+    start: Number(start.toFixed(2)),
+    end: Number(end.toFixed(2)),
+    high: Number(high.toFixed(2)),
+    low: Number(low.toFixed(2)),
+    change: Number(change.toFixed(2)),
+    changePercent: Number(changePercent.toFixed(2)),
   };
 }
 
-function getFallbackChart(symbol: string, warning?: string): ChartResponse {
-  const basePrice = fallbackBasePrices[symbol] || 100;
+function buildChartResponse(
+  symbol: string,
+  intradayPoints: ChartPoint[],
+  dailyPoints: ChartPoint[],
+  dataSource: "live" | "cached",
+  updatedAt: string,
+  warning?: string
+): ChartResponse {
+  const oneDay =
+    intradayPoints.length >= 2
+      ? intradayPoints
+      : dailyPoints.length >= 2
+      ? sliceLast(dailyPoints, 2)
+      : dailyPoints;
+
+  const chartPoints: Record<ChartRange, ChartPoint[]> = {
+    "1D": oneDay,
+    "1W": sliceLast(dailyPoints, 5),
+    "1M": sliceLast(dailyPoints, 22),
+    "3M": sliceLast(dailyPoints, 66),
+    "1Y": sliceLast(dailyPoints, 252),
+  };
+
+  const chartData: Record<ChartRange, number[]> = {
+    "1D": chartPoints["1D"].map((point) => point.close),
+    "1W": chartPoints["1W"].map((point) => point.close),
+    "1M": chartPoints["1M"].map((point) => point.close),
+    "3M": chartPoints["3M"].map((point) => point.close),
+    "1Y": chartPoints["1Y"].map((point) => point.close),
+  };
+
+  const stats: Record<ChartRange, ChartStats> = {
+    "1D": getStats(chartPoints["1D"]),
+    "1W": getStats(chartPoints["1W"]),
+    "1M": getStats(chartPoints["1M"]),
+    "3M": getStats(chartPoints["3M"]),
+    "1Y": getStats(chartPoints["1Y"]),
+  };
 
   return {
     symbol,
-    dataSource: "fallback",
-    chartData: createFallbackSeries(basePrice, true),
+    dataSource,
+    chartData,
+    chartPoints,
+    stats,
+    updatedAt,
     warning,
   };
 }
 
-function sampleEvery(values: number[], targetPoints: number) {
-  if (values.length <= targetPoints) return values;
+async function getCachedChart(symbol: string) {
+  const { data, error } = await supabaseServer
+    .from("stock_cache")
+    .select("chart_data, chart_updated_at")
+    .eq("symbol", symbol)
+    .maybeSingle();
 
-  const result: number[] = [];
-
-  for (let index = 0; index < targetPoints; index++) {
-    const sourceIndex = Math.round(
-      (index / (targetPoints - 1)) * (values.length - 1)
-    );
-
-    result.push(values[sourceIndex]);
+  if (error) {
+    console.error("Supabase chart read error:", error.message);
+    return null;
   }
 
-  return result;
-}
-
-function buildChartRanges(closesNewestFirst: number[]) {
-  const closesOldestFirst = [...closesNewestFirst].reverse();
-
-  const last = (days: number, points: number) => {
-    const values = closesOldestFirst.slice(Math.max(0, closesOldestFirst.length - days));
-
-    return sampleEvery(values, points).map((value) => Number(value.toFixed(2)));
-  };
+  if (!data?.chart_data || !isUpdatedToday(data.chart_updated_at)) {
+    return null;
+  }
 
   return {
-    "1D": last(2, 2),
-    "1W": last(7, 7),
-    "1M": last(22, 10),
-    "3M": last(66, 14),
-    "1Y": last(100, 20),
+    ...(data.chart_data as ChartResponse),
+    dataSource: "cached" as const,
+    warning: "Using shared chart cache from today.",
   };
+}
+
+async function getOlderCachedChart(symbol: string) {
+  const { data, error } = await supabaseServer
+    .from("stock_cache")
+    .select("chart_data")
+    .eq("symbol", symbol)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Supabase older chart read error:", error.message);
+    return null;
+  }
+
+  if (!data?.chart_data) return null;
+
+  return {
+    ...(data.chart_data as ChartResponse),
+    dataSource: "cached" as const,
+    warning:
+      "Live chart data is unavailable, so older shared chart cache is being used.",
+  };
+}
+
+async function saveChartCache(symbol: string, chartResponse: ChartResponse) {
+  const now = new Date().toISOString();
+
+  const { error } = await supabaseServer.from("stock_cache").upsert({
+    symbol,
+    chart_data: chartResponse,
+    chart_updated_at: now,
+    updated_at: now,
+  });
+
+  if (error) {
+    console.error("Supabase chart write error:", error.message);
+  }
+}
+
+async function fetchTimeSeries(symbol: string, interval: string, outputsize: number) {
+  const apiKey = process.env.TWELVE_DATA_API_KEY;
+
+  if (!apiKey || apiKey === "your_twelve_data_key_here") {
+    throw new Error("Missing Twelve Data API key.");
+  }
+
+  const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${apiKey}`;
+
+  const response = await fetch(url, { cache: "no-store" });
+  const data = await response.json();
+
+  if (data.status === "error") {
+    throw new Error(data.message || "Twelve Data chart error.");
+  }
+
+  if (!data.values || !Array.isArray(data.values)) {
+    throw new Error("No chart values returned.");
+  }
+
+  return normalizeTimeSeries(data.values);
+}
+
+async function fetchTwelveDataChart(symbol: string): Promise<ChartResponse> {
+  const [intradayPoints, dailyPoints] = await Promise.all([
+    fetchTimeSeries(symbol, "5min", 78),
+    fetchTimeSeries(symbol, "1day", 260),
+  ]);
+
+  if (dailyPoints.length < 2 && intradayPoints.length < 2) {
+    throw new Error("Not enough chart data returned.");
+  }
+
+  return buildChartResponse(
+    symbol,
+    intradayPoints,
+    dailyPoints,
+    "live",
+    new Date().toISOString()
+  );
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = (searchParams.get("symbol") || "AAPL").trim().toUpperCase();
+  const rawSymbol = searchParams.get("symbol");
+
+  const symbol = rawSymbol?.trim().toUpperCase();
 
   if (!symbol) {
     return NextResponse.json(
@@ -216,105 +270,34 @@ export async function GET(request: Request) {
     );
   }
 
-  const cached = chartCache.get(symbol);
-
-  if (cached && Date.now() - cached.savedAt < CACHE_TIME) {
-    return NextResponse.json({
-      ...cached.chart,
-      dataSource: "cached",
-      warning: "Using cached chart data.",
-    });
-  }
-
-  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      getFallbackChart(
-        symbol,
-        "Missing API key, so fallback chart data is being used."
-      )
-    );
-  }
-
-  if (Date.now() < alphaChartBlockedUntil) {
-    return NextResponse.json(
-      getFallbackChart(
-        symbol,
-        "Chart API limit was hit recently, so fallback chart data is being used."
-      )
-    );
-  }
-
-  const chartUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=compact&apikey=${apiKey}`;
-
   try {
-    const response = await fetch(chartUrl, { cache: "no-store" });
-    const data = (await response.json()) as AlphaDailyResponse;
+    const cachedChart = await getCachedChart(symbol);
 
-    if (isLimitMessage(data)) {
-      alphaChartBlockedUntil = Date.now() + BLOCK_ALPHA_TIME;
-
-      return NextResponse.json(
-        getFallbackChart(
-          symbol,
-          "Chart API limit reached, so fallback chart data is being used."
-        )
-      );
+    if (cachedChart) {
+      return NextResponse.json(cachedChart);
     }
 
-    const timeSeries = data["Time Series (Daily)"];
+    const liveChart = await fetchTwelveDataChart(symbol);
 
-    if (!timeSeries) {
-      return NextResponse.json(
-        getFallbackChart(
-          symbol,
-          "Live chart data was unavailable, so fallback chart data is being used."
-        )
-      );
-    }
+    await saveChartCache(symbol, liveChart);
 
-    const datesNewestFirst = Object.keys(timeSeries).sort().reverse();
+    return NextResponse.json(liveChart);
+  } catch (error) {
+    console.error("Chart route error:", error);
 
-    const closesNewestFirst = datesNewestFirst
-      .map((date) => Number(timeSeries[date]["4. close"]))
-      .filter((value) => !Number.isNaN(value) && value > 0);
+    const olderCachedChart = await getOlderCachedChart(symbol);
 
-    if (closesNewestFirst.length < 2) {
-      return NextResponse.json(
-        getFallbackChart(
-          symbol,
-          "Not enough live chart points were found, so fallback chart data is being used."
-        )
-      );
-    }
-
-    const chart: ChartResponse = {
-      symbol,
-      dataSource: "live",
-      chartData: buildChartRanges(closesNewestFirst),
-    };
-
-    chartCache.set(symbol, {
-      savedAt: Date.now(),
-      chart,
-    });
-
-    return NextResponse.json(chart);
-  } catch {
-    if (cached) {
-      return NextResponse.json({
-        ...cached.chart,
-        dataSource: "cached",
-        warning: "Live chart failed, so cached chart data is being used.",
-      });
+    if (olderCachedChart) {
+      return NextResponse.json(olderCachedChart);
     }
 
     return NextResponse.json(
-      getFallbackChart(
+      {
+        error: "Real chart data is unavailable for this symbol right now.",
         symbol,
-        "Live chart failed, so fallback chart data is being used."
-      )
+        dataSource: "unavailable",
+      },
+      { status: 503 }
     );
   }
 }
