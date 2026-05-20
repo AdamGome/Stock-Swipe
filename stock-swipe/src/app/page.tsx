@@ -138,10 +138,7 @@ const ranges: ChartRange[] = ["1D", "1W", "1M", "3M", "1Y"];
 function parseChangePercent(change: string) {
   const cleaned = change.replace("%", "").replace("+", "");
   const value = Number(cleaned);
-
-  if (Number.isNaN(value)) return 0;
-
-  return value;
+  return Number.isNaN(value) ? 0 : value;
 }
 
 function parseDollarChange(changeDollar?: string) {
@@ -153,14 +150,9 @@ function parseDollarChange(changeDollar?: string) {
     .replace(",", "");
 
   const value = Number(cleaned);
-
   if (Number.isNaN(value)) return 0;
 
-  if (changeDollar.startsWith("-")) {
-    return -Math.abs(value);
-  }
-
-  return value;
+  return changeDollar.startsWith("-") ? -Math.abs(value) : value;
 }
 
 function parseDollarValue(value?: string) {
@@ -169,101 +161,28 @@ function parseDollarValue(value?: string) {
   const cleaned = value.replace("$", "").replace(",", "");
   const numberValue = Number(cleaned);
 
-  if (Number.isNaN(numberValue)) return null;
-
-  return numberValue;
+  return Number.isNaN(numberValue) ? null : numberValue;
 }
 
 function createSampleChartData(price: number, change: string) {
-  const changeNumber = parseChangePercent(change);
-  const isPositive = changeNumber >= 0;
+  const isPositive = parseChangePercent(change) >= 0;
 
   if (isPositive) {
     return {
-      "1D": [
-        price * 0.985,
-        price * 0.99,
-        price * 0.988,
-        price * 0.996,
-        price * 1.002,
-        price,
-      ],
-      "1W": [
-        price * 0.96,
-        price * 0.97,
-        price * 0.965,
-        price * 0.985,
-        price * 0.995,
-        price,
-      ],
-      "1M": [
-        price * 0.92,
-        price * 0.94,
-        price * 0.935,
-        price * 0.965,
-        price * 0.985,
-        price,
-      ],
-      "3M": [
-        price * 0.88,
-        price * 0.9,
-        price * 0.93,
-        price * 0.95,
-        price * 0.98,
-        price,
-      ],
-      "1Y": [
-        price * 0.75,
-        price * 0.82,
-        price * 0.86,
-        price * 0.91,
-        price * 0.96,
-        price,
-      ],
+      "1D": [price * 0.985, price * 0.99, price * 0.988, price * 0.996, price * 1.002, price],
+      "1W": [price * 0.96, price * 0.97, price * 0.965, price * 0.985, price * 0.995, price],
+      "1M": [price * 0.92, price * 0.94, price * 0.935, price * 0.965, price * 0.985, price],
+      "3M": [price * 0.88, price * 0.9, price * 0.93, price * 0.95, price * 0.98, price],
+      "1Y": [price * 0.75, price * 0.82, price * 0.86, price * 0.91, price * 0.96, price],
     };
   }
 
   return {
-    "1D": [
-      price * 1.015,
-      price * 1.01,
-      price * 1.012,
-      price * 1.006,
-      price * 1.002,
-      price,
-    ],
-    "1W": [
-      price * 1.06,
-      price * 1.05,
-      price * 1.04,
-      price * 1.025,
-      price * 1.01,
-      price,
-    ],
-    "1M": [
-      price * 1.12,
-      price * 1.09,
-      price * 1.07,
-      price * 1.04,
-      price * 1.02,
-      price,
-    ],
-    "3M": [
-      price * 1.18,
-      price * 1.15,
-      price * 1.1,
-      price * 1.07,
-      price * 1.03,
-      price,
-    ],
-    "1Y": [
-      price * 1.25,
-      price * 1.2,
-      price * 1.15,
-      price * 1.1,
-      price * 1.05,
-      price,
-    ],
+    "1D": [price * 1.015, price * 1.01, price * 1.012, price * 1.006, price * 1.002, price],
+    "1W": [price * 1.06, price * 1.05, price * 1.04, price * 1.025, price * 1.01, price],
+    "1M": [price * 1.12, price * 1.09, price * 1.07, price * 1.04, price * 1.02, price],
+    "3M": [price * 1.18, price * 1.15, price * 1.1, price * 1.07, price * 1.03, price],
+    "1Y": [price * 1.25, price * 1.2, price * 1.15, price * 1.1, price * 1.05, price],
   };
 }
 
@@ -301,7 +220,6 @@ function getWeekRangePosition(stock: Stock) {
   }
 
   const percent = ((price - low) / (high - low)) * 100;
-
   return Math.max(0, Math.min(100, percent));
 }
 
@@ -314,10 +232,8 @@ function getMatchScore(stock: Stock) {
   const pe = Number(stock.peRatio);
   const beta = Number(stock.beta);
   const hasMarketCap = !!stock.marketCap && stock.marketCap !== "N/A";
-  const hasSummary =
-    !!stock.summary && stock.summary !== "No summary available.";
-  const hasTarget =
-    !!stock.analystTargetPrice && stock.analystTargetPrice !== "N/A";
+  const hasSummary = !!stock.summary && stock.summary !== "No summary available.";
+  const hasTarget = !!stock.analystTargetPrice && stock.analystTargetPrice !== "N/A";
   const hasEps = !!stock.eps && stock.eps !== "N/A";
   const risk = stock.riskLevel || "Research";
 
@@ -451,110 +367,45 @@ function getCompanyInsights(stock: Stock) {
     AAPL: {
       whatItDoes:
         "Apple sells consumer technology products like iPhone, Mac, iPad, Apple Watch, AirPods, and services such as iCloud, Apple Music, Apple TV+, and the App Store.",
-      watchItems: [
-        "iPhone sales",
-        "Services revenue",
-        "Profit margin",
-        "New products",
-      ],
-      strengths: [
-        "Strong brand loyalty",
-        "Huge cash flow",
-        "Large services ecosystem",
-      ],
-      risks: [
-        "Depends heavily on iPhone demand",
-        "High investor expectations",
-        "Regulatory pressure",
-      ],
+      watchItems: ["iPhone sales", "Services revenue", "Profit margin", "New products"],
+      strengths: ["Strong brand loyalty", "Huge cash flow", "Large services ecosystem"],
+      risks: ["Depends heavily on iPhone demand", "High investor expectations", "Regulatory pressure"],
       verdict:
         "Apple is a mature, high-quality company. Beginners can study it as a stable large-cap business, but valuation still matters.",
     },
     MSFT: {
       whatItDoes:
         "Microsoft makes money from cloud computing, business software, Windows, Office, Xbox, LinkedIn, and AI tools.",
-      watchItems: [
-        "Azure growth",
-        "AI adoption",
-        "Enterprise software demand",
-        "Profit margin",
-      ],
-      strengths: [
-        "Strong enterprise customer base",
-        "Major cloud business",
-        "Recurring software revenue",
-      ],
-      risks: [
-        "Cloud competition",
-        "AI spending costs",
-        "Valuation risk if growth slows",
-      ],
+      watchItems: ["Azure growth", "AI adoption", "Enterprise software demand", "Profit margin"],
+      strengths: ["Strong enterprise customer base", "Major cloud business", "Recurring software revenue"],
+      risks: ["Cloud competition", "AI spending costs", "Valuation risk if growth slows"],
       verdict:
         "Microsoft is a strong software and cloud company. Beginners can learn a lot from its recurring revenue model.",
     },
     NVDA: {
       whatItDoes:
         "NVIDIA designs chips used in gaming, artificial intelligence, data centers, robotics, and professional graphics.",
-      watchItems: [
-        "Data center revenue",
-        "AI chip demand",
-        "Competition",
-        "Profit margin",
-      ],
-      strengths: [
-        "Leader in AI chips",
-        "Strong data center demand",
-        "High-margin business",
-      ],
-      risks: [
-        "Very high expectations",
-        "AI demand could slow",
-        "Competition may increase",
-      ],
+      watchItems: ["Data center revenue", "AI chip demand", "Competition", "Profit margin"],
+      strengths: ["Leader in AI chips", "Strong data center demand", "High-margin business"],
+      risks: ["Very high expectations", "AI demand could slow", "Competition may increase"],
       verdict:
         "NVIDIA is a high-growth AI stock. It can be exciting, but high expectations can make the stock volatile.",
     },
     TSLA: {
       whatItDoes:
         "Tesla builds electric vehicles, battery products, charging infrastructure, solar products, and self-driving software.",
-      watchItems: [
-        "Vehicle deliveries",
-        "Margins",
-        "EV competition",
-        "Self-driving progress",
-      ],
-      strengths: [
-        "Strong EV brand",
-        "Large charging network",
-        "Software potential",
-      ],
-      risks: [
-        "High competition",
-        "Margin pressure",
-        "Stock often reacts strongly to news",
-      ],
+      watchItems: ["Vehicle deliveries", "Margins", "EV competition", "Self-driving progress"],
+      strengths: ["Strong EV brand", "Large charging network", "Software potential"],
+      risks: ["High competition", "Margin pressure", "Stock often reacts strongly to news"],
       verdict:
         "Tesla is a high-volatility stock. Beginners should be careful and understand that expectations drive a lot of the price action.",
     },
     AMD: {
       whatItDoes:
         "AMD designs CPUs and GPUs used in PCs, gaming systems, servers, data centers, and AI-related computing.",
-      watchItems: [
-        "Data center growth",
-        "AI chips",
-        "Competition with NVIDIA and Intel",
-        "PC demand",
-      ],
-      strengths: [
-        "Competitive chips",
-        "AI and data center opportunity",
-        "Gaming exposure",
-      ],
-      risks: [
-        "Strong competition",
-        "Chip cycles can be volatile",
-        "High AI expectations",
-      ],
+      watchItems: ["Data center growth", "AI chips", "Competition with NVIDIA and Intel", "PC demand"],
+      strengths: ["Competitive chips", "AI and data center opportunity", "Gaming exposure"],
+      risks: ["Strong competition", "Chip cycles can be volatile", "High AI expectations"],
       verdict:
         "AMD is a semiconductor growth stock. It can be interesting, but chip stocks can move in cycles.",
     },
@@ -569,22 +420,9 @@ function getCompanyInsights(stock: Stock) {
       stock.breakdown ||
       stock.summary ||
       `${stock.name} is a company in the ${stock.sector || "Unknown"} sector.`,
-    watchItems: [
-      "Revenue growth",
-      "Profit margin",
-      "Debt and cash flow",
-      "Competition",
-    ],
-    strengths: [
-      "Can be compared against competitors",
-      "Useful for learning stock research",
-      "May have a clear market niche",
-    ],
-    risks: [
-      "Limited data in this prototype",
-      "Stock price can move quickly",
-      "More research is needed",
-    ],
+    watchItems: ["Revenue growth", "Profit margin", "Debt and cash flow", "Competition"],
+    strengths: ["Can be compared against competitors", "Useful for learning stock research", "May have a clear market niche"],
+    risks: ["Limited data in this prototype", "Stock price can move quickly", "More research is needed"],
     verdict:
       "This stock needs more research. Use the Yahoo Finance link and company filings before making any investment decision.",
   };
@@ -594,21 +432,25 @@ function DataCard({
   label,
   value,
   note,
+  compact = false,
 }: {
   label: string;
   value?: string;
   note?: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="bg-slate-900 rounded-2xl p-4">
+    <div className={compact ? "bg-slate-900 rounded-2xl p-3" : "bg-slate-900 rounded-2xl p-4"}>
       <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-lg font-bold mt-1">{value || "N/A"}</p>
+      <p className={compact ? "text-sm font-bold mt-1" : "text-lg font-bold mt-1"}>
+        {value || "N/A"}
+      </p>
       {note && <p className="text-xs text-slate-600 mt-1">{note}</p>}
     </div>
   );
 }
 
-function WeekRangeBar({ stock }: { stock: Stock }) {
+function WeekRangeBar({ stock, compact = false }: { stock: Stock; compact?: boolean }) {
   const position = getWeekRangePosition(stock);
 
   return (
@@ -630,14 +472,11 @@ function WeekRangeBar({ stock }: { stock: Stock }) {
         <span>High: {stock.fiftyTwoWeekHigh || "N/A"}</span>
       </div>
 
-      {position === null ? (
+      {!compact && (
         <p className="text-xs text-slate-600 mt-2">
-          Range data unavailable right now.
-        </p>
-      ) : (
-        <p className="text-xs text-slate-600 mt-2">
-          Current price is about {position.toFixed(0)}% of the way from the
-          52-week low to high.
+          {position === null
+            ? "Range data unavailable right now."
+            : `Current price is about ${position.toFixed(0)}% of the way from the 52-week low to high.`}
         </p>
       )}
     </div>
@@ -755,8 +594,8 @@ function StockDetailModal({
   const match = getMatchScore(stock);
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-6 z-50">
-      <div className="bg-[#0f1320] border border-slate-700 rounded-3xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+      <div className="bg-[#0f1320] border border-slate-700 rounded-3xl max-w-md w-full p-5 max-h-[88vh] overflow-y-auto shadow-2xl">
         <div className="flex justify-between items-start">
           <div>
             <div className="flex items-center gap-2">
@@ -780,9 +619,7 @@ function StockDetailModal({
           </button>
         </div>
 
-        <div
-          className={`mt-6 rounded-2xl p-4 border ${match.bg} ${match.border}`}
-        >
+        <div className={`mt-5 rounded-2xl p-4 border ${match.bg} ${match.border}`}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-slate-400">Match Score</p>
@@ -806,7 +643,7 @@ function StockDetailModal({
           </div>
         </div>
 
-        <div className="mt-6 bg-[#090d18] rounded-2xl p-4">
+        <div className="mt-5 bg-[#090d18] rounded-2xl p-4">
           <div className="flex justify-between mb-3">
             {ranges.map((range) => (
               <button
@@ -841,16 +678,9 @@ function StockDetailModal({
 
         <div className="grid grid-cols-2 gap-3 mt-5">
           <DataCard label="Price" value={`$${stock.price}`} />
-          <DataCard
-            label="Today"
-            value={stock.change}
-            note={stock.changeDollar || "$0.00"}
-          />
+          <DataCard label="Today" value={stock.change} note={stock.changeDollar || "$0.00"} />
           <DataCard label="Previous close" value={stock.previousClose || "N/A"} />
-          <DataCard
-            label="Analyst target"
-            value={stock.analystTargetPrice || "N/A"}
-          />
+          <DataCard label="Analyst target" value={stock.analystTargetPrice || "N/A"} />
           <DataCard label="Market cap" value={stock.marketCap || "N/A"} />
           <DataCard label="P/E" value={stock.peRatio || "N/A"} />
           <DataCard label="EPS" value={stock.eps || "N/A"} />
@@ -1127,6 +957,7 @@ export default function Home() {
   const [tickerInput, setTickerInput] = useState("");
   const [tickerMessage, setTickerMessage] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<StockFilter>("all");
+  const [showFilters, setShowFilters] = useState(false);
   const [lastAction, setLastAction] = useState<{
     list: "liked" | "passed";
     stock: Stock;
@@ -1185,6 +1016,11 @@ export default function Home() {
   const currentSymbol = allStockSymbols.find(
     (symbol) => !alreadySeenTickers.includes(symbol)
   );
+
+  const totalSaved = liked.length + passed.length;
+  const selectedFilterLabel =
+    filterOptions.find((filter) => filter.id === selectedFilter)?.label ||
+    "All";
 
   useEffect(() => {
     if (!loaded) return;
@@ -1426,6 +1262,7 @@ export default function Home() {
     setTickerInput("");
     setTickerMessage("");
     setSelectedFilter("all");
+    setShowFilters(false);
     setLastAction(null);
     setSelectedStock(null);
     setSelectedRange("1M");
@@ -1511,122 +1348,147 @@ export default function Home() {
     resetDrag();
   }
 
-  const totalSaved = liked.length + passed.length;
-  const selectedFilterLabel =
-    filterOptions.find((filter) => filter.id === selectedFilter)?.label ||
-    "All";
-
   function Header() {
     return (
-      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-5">
+      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-5 shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-green-400 text-black w-8 h-8 rounded-full flex items-center justify-center font-black">
             ↗
           </div>
 
-          <h1 className="font-black text-lg">StockSwipe</h1>
+          <div>
+            <h1 className="font-black text-lg leading-none">StockSwipe</h1>
+            <p className="text-[11px] text-slate-500 mt-1">
+              {selectedFilterLabel} deck
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={() => setShowLists(true)}
-          className="relative text-slate-300 hover:text-white"
-        >
-          Lists
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowFilters(true)}
+            className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2 rounded-full text-sm hover:border-green-400"
+          >
+            Filter
+          </button>
 
-          {totalSaved > 0 && (
-            <span className="ml-2 bg-slate-800 text-slate-300 px-2 py-1 rounded-full text-xs">
-              {totalSaved}
-            </span>
-          )}
-        </button>
+          <button
+            onClick={() => setShowLists(true)}
+            className="relative text-slate-300 hover:text-white text-sm"
+          >
+            Lists
+
+            {totalSaved > 0 && (
+              <span className="ml-2 bg-slate-800 text-slate-300 px-2 py-1 rounded-full text-xs">
+                {totalSaved}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
     );
   }
 
-  function FilterBar() {
+  function FilterModal() {
+    if (!showFilters) return null;
+
     return (
-      <div className="w-full max-w-sm mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-slate-500">Swipe category</p>
+      <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4">
+        <div className="bg-[#0f1320] border border-slate-700 rounded-3xl w-full max-w-md p-5 shadow-2xl max-h-[88vh] overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-black">Filters</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Choose what kind of stocks you want to swipe.
+              </p>
+            </div>
 
-          <p className="text-xs text-slate-600">
-            {selectedFilter === "all" ? "Full deck" : selectedFilterLabel}
-          </p>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {filterOptions.map((filter) => (
             <button
-              key={filter.id}
-              type="button"
-              onClick={() => {
-                setSelectedFilter(filter.id);
-                setSelectedRange("1M");
-                setTickerMessage("");
-                resetDrag();
+              onClick={() => setShowFilters(false)}
+              className="text-slate-400 hover:text-white text-3xl"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="mt-6">
+            <p className="text-xs text-slate-500 mb-3">Company type</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              {filterOptions.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFilter(filter.id);
+                    setSelectedRange("1M");
+                    setTickerMessage("");
+                    resetDrag();
+                    setShowFilters(false);
+                  }}
+                  className={
+                    selectedFilter === filter.id
+                      ? "bg-green-400 text-black px-4 py-3 rounded-2xl text-sm font-bold"
+                      : "bg-slate-900 border border-slate-800 text-slate-300 px-4 py-3 rounded-2xl text-sm hover:border-green-400"
+                  }
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 border-t border-slate-800 pt-5">
+            <p className="text-xs text-slate-500 mb-3">Add a ticker</p>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                addTickerToDeck();
               }}
-              className={
-                selectedFilter === filter.id
-                  ? "whitespace-nowrap bg-green-400 text-black px-4 py-2 rounded-full text-xs font-bold"
-                  : "whitespace-nowrap bg-slate-900 border border-slate-800 text-slate-300 px-4 py-2 rounded-full text-xs hover:border-green-400"
-              }
+              className="flex gap-2"
             >
-              {filter.label}
-            </button>
-          ))}
+              <input
+                value={tickerInput}
+                onChange={(event) => setTickerInput(event.target.value)}
+                placeholder="Example: META"
+                className="flex-1 bg-[#090d18] border border-slate-800 rounded-full px-4 py-3 text-white placeholder:text-slate-600 outline-none focus:border-green-400"
+              />
+
+              <button
+                type="submit"
+                className="bg-green-400 text-black px-5 py-3 rounded-full font-bold"
+              >
+                Add
+              </button>
+            </form>
+
+            <div className="flex flex-wrap gap-2 mt-3">
+              {popularStockIdeas.map((symbol) => (
+                <button
+                  key={symbol}
+                  type="button"
+                  onClick={() => addTickerToDeck(symbol)}
+                  className="bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3 py-2 rounded-full hover:border-green-400"
+                >
+                  {symbol}
+                </button>
+              ))}
+            </div>
+
+            {tickerMessage && (
+              <p className="text-xs text-slate-500 mt-3">{tickerMessage}</p>
+            )}
+          </div>
+
+          <div className="mt-6 bg-[#090d18] border border-slate-800 rounded-2xl p-4">
+            <p className="text-sm text-slate-300 font-bold">Coming next</p>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Sorting by best match, biggest mover, highest P/E, lowest risk,
+              and highest beta.
+            </p>
+          </div>
         </div>
-
-        <p className="text-[11px] text-slate-600 mt-1">
-          Later: sort by best match, biggest mover, highest P/E, lowest risk,
-          and highest beta.
-        </p>
-      </div>
-    );
-  }
-
-  function AddTickerBox() {
-    return (
-      <div className="w-full max-w-sm mb-5">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            addTickerToDeck();
-          }}
-          className="flex gap-2"
-        >
-          <input
-            value={tickerInput}
-            onChange={(event) => setTickerInput(event.target.value)}
-            placeholder="Add ticker, e.g. META"
-            className="flex-1 bg-[#0f1320] border border-slate-800 rounded-full px-4 py-3 text-white placeholder:text-slate-600 outline-none focus:border-green-400"
-          />
-
-          <button
-            type="submit"
-            className="bg-green-400 text-black px-5 py-3 rounded-full font-bold"
-          >
-            Add
-          </button>
-        </form>
-
-        <div className="flex flex-wrap gap-2 mt-3 justify-center">
-          {popularStockIdeas.map((symbol) => (
-            <button
-              key={symbol}
-              type="button"
-              onClick={() => addTickerToDeck(symbol)}
-              className="bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3 py-2 rounded-full hover:border-green-400"
-            >
-              {symbol}
-            </button>
-          ))}
-        </div>
-
-        {tickerMessage && (
-          <p className="text-xs text-slate-500 mt-3 text-center">
-            {tickerMessage}
-          </p>
-        )}
       </div>
     );
   }
@@ -1644,44 +1506,52 @@ export default function Home() {
 
   if (!currentSymbol) {
     return (
-      <main className="min-h-screen bg-[#080c16] text-white">
+      <main className="min-h-screen bg-[#080c16] text-white overflow-x-hidden">
         <Header />
 
         <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-6 text-center">
-          <h2 className="text-4xl font-bold">No more stocks</h2>
+          <div className="max-w-sm w-full bg-[#0f1320] border border-slate-800 rounded-3xl p-6">
+            <h2 className="text-4xl font-bold">No more stocks</h2>
 
-          <p className="text-slate-500 mt-4">
-            You have swiped through every stock in the {selectedFilterLabel} deck.
-          </p>
+            <p className="text-slate-500 mt-4">
+              You have swiped through every stock in the {selectedFilterLabel} deck.
+            </p>
 
-          <div className="mt-8 w-full max-w-sm">
-            <FilterBar />
-            <AddTickerBox />
+            {lastAction && (
+              <button
+                onClick={undoLastSwipe}
+                className="mt-6 border border-slate-700 text-slate-300 px-4 py-2 rounded-full text-sm hover:border-green-400 hover:text-white"
+              >
+                Undo last swipe: {lastAction.stock.ticker}
+              </button>
+            )}
+
+            <div className="flex flex-col gap-3 mt-8">
+              <button
+                onClick={() => setShowFilters(true)}
+                className="bg-green-400 text-black px-6 py-3 rounded-full font-bold"
+              >
+                Change Filter
+              </button>
+
+              <button
+                onClick={() => setShowLists(true)}
+                className="border border-slate-700 text-slate-300 px-6 py-3 rounded-full"
+              >
+                Open Lists
+              </button>
+
+              <button
+                onClick={resetApp}
+                className="border border-slate-800 text-slate-500 px-6 py-3 rounded-full"
+              >
+                Reset App
+              </button>
+            </div>
           </div>
-
-          {lastAction && (
-            <button
-              onClick={undoLastSwipe}
-              className="mt-6 border border-slate-700 text-slate-300 px-4 py-2 rounded-full text-sm hover:border-green-400 hover:text-white"
-            >
-              Undo last swipe: {lastAction.stock.ticker}
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowLists(true)}
-            className="mt-8 bg-green-400 text-black px-6 py-3 rounded-full font-bold"
-          >
-            Open Lists
-          </button>
-
-          <button
-            onClick={resetApp}
-            className="mt-4 border border-slate-700 text-slate-300 px-6 py-3 rounded-full"
-          >
-            Reset App
-          </button>
         </section>
+
+        <FilterModal />
 
         {showLists && (
           <ListsPanel
@@ -1710,7 +1580,7 @@ export default function Home() {
 
   if (isFetchingStock) {
     return (
-      <main className="min-h-screen bg-[#080c16] text-white">
+      <main className="min-h-screen bg-[#080c16] text-white overflow-x-hidden">
         <Header />
 
         <section className="min-h-[calc(100vh-64px)] flex items-center justify-center p-6">
@@ -1722,6 +1592,8 @@ export default function Home() {
             </p>
           </div>
         </section>
+
+        <FilterModal />
 
         {showLists && (
           <ListsPanel
@@ -1743,7 +1615,7 @@ export default function Home() {
 
   if (fetchError) {
     return (
-      <main className="min-h-screen bg-[#080c16] text-white">
+      <main className="min-h-screen bg-[#080c16] text-white overflow-x-hidden">
         <Header />
 
         <section className="min-h-[calc(100vh-64px)] flex items-center justify-center p-6">
@@ -1769,6 +1641,8 @@ export default function Home() {
             </button>
           </div>
         </section>
+
+        <FilterModal />
 
         {showLists && (
           <ListsPanel
@@ -1799,23 +1673,23 @@ export default function Home() {
   const match = getMatchScore(stock);
 
   return (
-    <main className="min-h-screen bg-[#080c16] text-white overflow-hidden">
+    <main className="min-h-screen bg-[#080c16] text-white overflow-x-hidden">
       <Header />
 
-      <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-6">
-        <FilterBar />
-        <AddTickerBox />
-
-        <p className="mb-4 text-sm text-slate-500 text-center">
-          Drag right to like. Drag left to pass.
-        </p>
+      <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-4 sm:p-6">
+        <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
+          <span className="bg-slate-900 border border-slate-800 px-3 py-1 rounded-full">
+            {selectedFilterLabel}
+          </span>
+          <span>Drag right to like, left to pass</span>
+        </div>
 
         {lastAction && (
           <button
             onClick={undoLastSwipe}
-            className="mb-4 border border-slate-700 text-slate-300 px-4 py-2 rounded-full text-sm hover:border-green-400 hover:text-white"
+            className="mb-3 border border-slate-700 text-slate-300 px-4 py-2 rounded-full text-sm hover:border-green-400 hover:text-white"
           >
-            Undo last swipe: {lastAction.stock.ticker}
+            Undo: {lastAction.stock.ticker}
           </button>
         )}
 
@@ -1829,43 +1703,37 @@ export default function Home() {
             transition: isDragging ? "none" : "transform 0.2s ease",
             touchAction: "pan-y",
           }}
-          className="relative bg-[#0f1320] p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl border border-slate-800 select-none cursor-grab active:cursor-grabbing"
+          className="relative bg-[#0f1320] p-5 rounded-3xl w-full max-w-sm text-center shadow-2xl border border-slate-800 select-none cursor-grab active:cursor-grabbing"
         >
           <div
             style={{ opacity: passOpacity }}
-            className="absolute left-6 top-8 border-4 border-red-500 text-red-500 px-4 py-2 rounded-xl text-2xl font-black rotate-[-15deg]"
+            className="absolute left-6 top-8 border-4 border-red-500 text-red-500 px-4 py-2 rounded-xl text-2xl font-black rotate-[-15deg] z-10"
           >
             PASS
           </div>
 
           <div
             style={{ opacity: likeOpacity }}
-            className="absolute right-6 top-8 border-4 border-green-500 text-green-500 px-4 py-2 rounded-xl text-2xl font-black rotate-[15deg]"
+            className="absolute right-6 top-8 border-4 border-green-500 text-green-500 px-4 py-2 rounded-xl text-2xl font-black rotate-[15deg] z-10"
           >
             LIKE
           </div>
 
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-xs bg-slate-900 text-slate-300 px-3 py-1 rounded-full">
-              {selectedFilterLabel}
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-xs bg-slate-900 text-slate-300 px-3 py-1 rounded-full max-w-[180px] truncate">
+              {stock.industry || stock.sector || "Stock"}
             </p>
 
             <p className="text-xs bg-green-500/20 text-green-300 px-3 py-1 rounded-full">
               {stock.dataSource === "fallback"
-                ? "Fallback Data"
+                ? "Fallback"
                 : stock.dataSource === "cached"
-                ? "Cached Data"
-                : "Live Data"}
+                ? "Cached"
+                : "Live"}
             </p>
           </div>
 
-          <p className="text-xs text-slate-500 mb-2">
-            {stock.industry || stock.sector || "Stock"}
-          </p>
-
-          <div
-            className={`mb-4 rounded-2xl border ${match.bg} ${match.border} p-3`}
-          >
+          <div className={`mb-4 rounded-2xl border ${match.bg} ${match.border} p-3`}>
             <p className="text-xs text-slate-400">Match Score</p>
             <div className="flex justify-between items-center">
               <p className={`text-3xl font-black ${match.color}`}>
@@ -1879,11 +1747,11 @@ export default function Home() {
 
           <h2 className="text-5xl font-black">{stock.ticker}</h2>
 
-          <p className="text-xl mt-2 text-slate-300 line-clamp-1">
+          <p className="text-lg mt-2 text-slate-300 line-clamp-1">
             {stock.name}
           </p>
 
-          <div className="flex justify-center items-end gap-4 mt-6">
+          <div className="flex justify-center items-end gap-4 mt-5">
             <p className="text-3xl font-bold">${stock.price}</p>
 
             <div className="text-left">
@@ -1903,8 +1771,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-6 bg-[#090d18] rounded-2xl p-4">
-            <div className="flex justify-between mb-3">
+          <div className="mt-5 bg-[#090d18] rounded-2xl p-3">
+            <div className="flex justify-between mb-2">
               {ranges.map((range) => (
                 <button
                   key={range}
@@ -1920,7 +1788,7 @@ export default function Home() {
               ))}
             </div>
 
-            <svg viewBox="0 0 260 100" className="w-full h-28">
+            <svg viewBox="0 0 260 100" className="w-full h-24">
               <polyline
                 points={chartPoints}
                 fill="none"
@@ -1930,33 +1798,22 @@ export default function Home() {
                 strokeLinejoin="round"
               />
             </svg>
-
-            <p className="text-xs text-slate-600 mt-2 text-center">
-              Chart uses live, cached, or fallback historical data.
-            </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mt-5 text-left">
-            <DataCard label="Target" value={stock.analystTargetPrice || "N/A"} />
-            <DataCard label="EPS" value={stock.eps || "N/A"} />
-            <DataCard label="Beta" value={stock.beta || "N/A"} />
+          <div className="grid grid-cols-3 gap-2 mt-4 text-left">
+            <DataCard compact label="Target" value={stock.analystTargetPrice || "N/A"} />
+            <DataCard compact label="EPS" value={stock.eps || "N/A"} />
+            <DataCard compact label="Beta" value={stock.beta || "N/A"} />
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mt-3 text-left">
-            <DataCard label="Market Cap" value={stock.marketCap || "N/A"} />
-            <DataCard label="P/E" value={stock.peRatio || "N/A"} />
-            <DataCard label="Risk" value={stock.riskLevel || "Research"} />
+          <div className="grid grid-cols-3 gap-2 mt-2 text-left">
+            <DataCard compact label="Market Cap" value={stock.marketCap || "N/A"} />
+            <DataCard compact label="P/E" value={stock.peRatio || "N/A"} />
+            <DataCard compact label="Risk" value={stock.riskLevel || "Research"} />
           </div>
 
-          <div className="mt-5">
-            <WeekRangeBar stock={stock} />
-          </div>
-
-          <div className="mt-5 bg-slate-900 rounded-2xl p-4 text-left">
-            <p className="text-sm text-slate-500 mb-1">Quick summary</p>
-            <p className="text-sm text-slate-200">
-              {stock.summary || "No summary available."}
-            </p>
+          <div className="mt-4">
+            <WeekRangeBar stock={stock} compact />
           </div>
 
           <button
@@ -1965,24 +1822,26 @@ export default function Home() {
           >
             Learn More
           </button>
+        </div>
 
-          <div className="flex gap-4 mt-6 justify-center">
-            <button
-              onClick={passStock}
-              className="bg-red-500 hover:bg-red-600 px-6 py-3 rounded-full font-bold"
-            >
-              Pass
-            </button>
+        <div className="flex gap-4 mt-5 justify-center">
+          <button
+            onClick={passStock}
+            className="bg-red-500 hover:bg-red-600 px-8 py-3 rounded-full font-bold shadow-lg"
+          >
+            Pass
+          </button>
 
-            <button
-              onClick={likeStock}
-              className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-full font-bold"
-            >
-              Like
-            </button>
-          </div>
+          <button
+            onClick={likeStock}
+            className="bg-green-500 hover:bg-green-600 px-8 py-3 rounded-full font-bold shadow-lg"
+          >
+            Like
+          </button>
         </div>
       </section>
+
+      <FilterModal />
 
       {showLists && (
         <ListsPanel
