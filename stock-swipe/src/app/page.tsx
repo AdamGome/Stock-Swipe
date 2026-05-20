@@ -5,6 +5,16 @@ import { useEffect, useState, type PointerEvent } from "react";
 type ChartRange = "1D" | "1W" | "1M" | "3M" | "1Y";
 type ListTab = "watchlist" | "passed";
 
+type ListSort =
+  | "saved"
+  | "bestMatch"
+  | "biggestGainer"
+  | "biggestLoser"
+  | "highestPE"
+  | "lowestPE"
+  | "highestBeta"
+  | "lowestRisk";
+
 type StockFilter =
   | "all"
   | "tech"
@@ -128,6 +138,17 @@ const filterOptions: { id: StockFilter; label: string }[] = [
   { id: "healthcare", label: "Healthcare" },
   { id: "energy", label: "Energy" },
   { id: "speculative", label: "Speculative" },
+];
+
+const listSortOptions: { id: ListSort; label: string }[] = [
+  { id: "saved", label: "Saved order" },
+  { id: "bestMatch", label: "Best Match" },
+  { id: "biggestGainer", label: "Biggest Gainer" },
+  { id: "biggestLoser", label: "Biggest Loser" },
+  { id: "highestPE", label: "Highest P/E" },
+  { id: "lowestPE", label: "Lowest P/E" },
+  { id: "highestBeta", label: "Highest Beta" },
+  { id: "lowestRisk", label: "Lowest Risk" },
 ];
 
 const defaultStockSymbols = stockUniverse.map((stock) => stock.symbol);
@@ -267,6 +288,21 @@ function parseDollarValue(value?: string) {
   return Number.isNaN(numberValue) ? null : numberValue;
 }
 
+function parseNumberValue(value?: string) {
+  if (!value) return null;
+
+  const cleaned = value
+    .replace("$", "")
+    .replace("%", "")
+    .replace(",", "")
+    .replace("+", "")
+    .trim();
+
+  const numberValue = Number(cleaned);
+
+  return Number.isNaN(numberValue) ? null : numberValue;
+}
+
 function createSampleChartData(price: number, change: string) {
   const isPositive = parseChangePercent(change) >= 0;
 
@@ -394,6 +430,16 @@ function getWeekRangePosition(stock: Stock) {
 
   const percent = ((price - low) / (high - low)) * 100;
   return Math.max(0, Math.min(100, percent));
+}
+
+function getRiskRank(stock: Stock) {
+  const risk = (stock.riskLevel || "").toLowerCase();
+
+  if (risk.includes("low")) return 1;
+  if (risk.includes("medium")) return 2;
+  if (risk.includes("high")) return 3;
+
+  return 4;
 }
 
 function getMatchScore(stock: Stock) {
@@ -524,6 +570,55 @@ function getMatchScore(stock: Stock) {
     border: "border-red-500/30",
     reasons,
   };
+}
+
+function sortStockList(list: Stock[], sortBy: ListSort) {
+  const copiedList = [...list];
+
+  if (sortBy === "saved") {
+    return copiedList;
+  }
+
+  return copiedList.sort((a, b) => {
+    if (sortBy === "bestMatch") {
+      return getMatchScore(b).score - getMatchScore(a).score;
+    }
+
+    if (sortBy === "biggestGainer") {
+      return parseChangePercent(b.change) - parseChangePercent(a.change);
+    }
+
+    if (sortBy === "biggestLoser") {
+      return parseChangePercent(a.change) - parseChangePercent(b.change);
+    }
+
+    if (sortBy === "highestPE") {
+      const aPE = parseNumberValue(a.peRatio) ?? -1;
+      const bPE = parseNumberValue(b.peRatio) ?? -1;
+
+      return bPE - aPE;
+    }
+
+    if (sortBy === "lowestPE") {
+      const aPE = parseNumberValue(a.peRatio) ?? Number.MAX_SAFE_INTEGER;
+      const bPE = parseNumberValue(b.peRatio) ?? Number.MAX_SAFE_INTEGER;
+
+      return aPE - bPE;
+    }
+
+    if (sortBy === "highestBeta") {
+      const aBeta = parseNumberValue(a.beta) ?? -1;
+      const bBeta = parseNumberValue(b.beta) ?? -1;
+
+      return bBeta - aBeta;
+    }
+
+    if (sortBy === "lowestRisk") {
+      return getRiskRank(a) - getRiskRank(b);
+    }
+
+    return 0;
+  });
 }
 
 function getCompanyInsights(stock: Stock) {
@@ -1097,13 +1192,25 @@ function ListsPanel({
   onMoveToPassed: (stock: Stock) => void;
   onRemoveFromList: (stock: Stock, list: ListTab) => void;
 }) {
-  const list = activeTab === "watchlist" ? liked : passed;
+  const [sortBy, setSortBy] = useState<ListSort>("saved");
+
+  const rawList = activeTab === "watchlist" ? liked : passed;
+  const list = sortStockList(rawList, sortBy);
+
+  const selectedSortLabel =
+    listSortOptions.find((option) => option.id === sortBy)?.label ||
+    "Saved order";
 
   return (
     <div className="fixed inset-0 bg-[#080c16] text-white z-40 p-6 overflow-y-auto">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold">Lists</h2>
+          <div>
+            <h2 className="text-xl font-bold">Lists</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Sort saved stocks without using more API calls.
+            </p>
+          </div>
 
           <button
             onClick={onClose}
@@ -1137,6 +1244,29 @@ function ListsPanel({
           </button>
         </div>
 
+        <div className="mt-6 bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-slate-500">Sort by</p>
+              <p className="text-sm text-slate-300 mt-1">
+                {selectedSortLabel}
+              </p>
+            </div>
+
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as ListSort)}
+              className="bg-slate-900 border border-slate-700 text-white rounded-full px-4 py-2 text-sm outline-none focus:border-green-400"
+            >
+              {listSortOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="mt-8">
           {list.length === 0 ? (
             <div className="border border-slate-800 bg-[#0f1320] rounded-2xl p-6 text-slate-400">
@@ -1167,9 +1297,23 @@ function ListsPanel({
 
                         <p className="text-sm text-slate-500">{stock.name}</p>
 
-                        <p className={`text-xs mt-1 ${match.color}`}>
-                          Match Score: {match.score}%
-                        </p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className={`text-xs ${match.color}`}>
+                            Match: {match.score}%
+                          </span>
+
+                          <span className="text-xs text-slate-600">
+                            P/E: {stock.peRatio || "N/A"}
+                          </span>
+
+                          <span className="text-xs text-slate-600">
+                            Beta: {stock.beta || "N/A"}
+                          </span>
+
+                          <span className="text-xs text-slate-600">
+                            Risk: {stock.riskLevel || "Research"}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="text-right">
@@ -1653,7 +1797,8 @@ export default function Home() {
     if (
       target.closest("button") ||
       target.closest("a") ||
-      target.closest("input")
+      target.closest("input") ||
+      target.closest("select")
     ) {
       return;
     }
