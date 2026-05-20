@@ -33,6 +33,15 @@ type Stock = {
   warning?: string;
 };
 
+type NewsItem = {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  summary: string;
+  sentiment: string;
+};
+
 const defaultStockSymbols = [
   "AAPL",
   "MSFT",
@@ -76,7 +85,11 @@ function parseChangePercent(change: string) {
 function parseDollarChange(changeDollar?: string) {
   if (!changeDollar) return 0;
 
-  const cleaned = changeDollar.replace("$", "").replace("+", "").replace(",", "");
+  const cleaned = changeDollar
+    .replace("$", "")
+    .replace("+", "")
+    .replace(",", "");
+
   const value = Number(cleaned);
 
   if (Number.isNaN(value)) return 0;
@@ -105,20 +118,90 @@ function createSampleChartData(price: number, change: string) {
 
   if (isPositive) {
     return {
-      "1D": [price * 0.985, price * 0.99, price * 0.988, price * 0.996, price * 1.002, price],
-      "1W": [price * 0.96, price * 0.97, price * 0.965, price * 0.985, price * 0.995, price],
-      "1M": [price * 0.92, price * 0.94, price * 0.935, price * 0.965, price * 0.985, price],
-      "3M": [price * 0.88, price * 0.9, price * 0.93, price * 0.95, price * 0.98, price],
-      "1Y": [price * 0.75, price * 0.82, price * 0.86, price * 0.91, price * 0.96, price],
+      "1D": [
+        price * 0.985,
+        price * 0.99,
+        price * 0.988,
+        price * 0.996,
+        price * 1.002,
+        price,
+      ],
+      "1W": [
+        price * 0.96,
+        price * 0.97,
+        price * 0.965,
+        price * 0.985,
+        price * 0.995,
+        price,
+      ],
+      "1M": [
+        price * 0.92,
+        price * 0.94,
+        price * 0.935,
+        price * 0.965,
+        price * 0.985,
+        price,
+      ],
+      "3M": [
+        price * 0.88,
+        price * 0.9,
+        price * 0.93,
+        price * 0.95,
+        price * 0.98,
+        price,
+      ],
+      "1Y": [
+        price * 0.75,
+        price * 0.82,
+        price * 0.86,
+        price * 0.91,
+        price * 0.96,
+        price,
+      ],
     };
   }
 
   return {
-    "1D": [price * 1.015, price * 1.01, price * 1.012, price * 1.006, price * 1.002, price],
-    "1W": [price * 1.06, price * 1.05, price * 1.04, price * 1.025, price * 1.01, price],
-    "1M": [price * 1.12, price * 1.09, price * 1.07, price * 1.04, price * 1.02, price],
-    "3M": [price * 1.18, price * 1.15, price * 1.1, price * 1.07, price * 1.03, price],
-    "1Y": [price * 1.25, price * 1.2, price * 1.15, price * 1.1, price * 1.05, price],
+    "1D": [
+      price * 1.015,
+      price * 1.01,
+      price * 1.012,
+      price * 1.006,
+      price * 1.002,
+      price,
+    ],
+    "1W": [
+      price * 1.06,
+      price * 1.05,
+      price * 1.04,
+      price * 1.025,
+      price * 1.01,
+      price,
+    ],
+    "1M": [
+      price * 1.12,
+      price * 1.09,
+      price * 1.07,
+      price * 1.04,
+      price * 1.02,
+      price,
+    ],
+    "3M": [
+      price * 1.18,
+      price * 1.15,
+      price * 1.1,
+      price * 1.07,
+      price * 1.03,
+      price,
+    ],
+    "1Y": [
+      price * 1.25,
+      price * 1.2,
+      price * 1.15,
+      price * 1.1,
+      price * 1.05,
+      price,
+    ],
   };
 }
 
@@ -169,8 +252,10 @@ function getMatchScore(stock: Stock) {
   const pe = Number(stock.peRatio);
   const beta = Number(stock.beta);
   const hasMarketCap = !!stock.marketCap && stock.marketCap !== "N/A";
-  const hasSummary = !!stock.summary && stock.summary !== "No summary available.";
-  const hasTarget = !!stock.analystTargetPrice && stock.analystTargetPrice !== "N/A";
+  const hasSummary =
+    !!stock.summary && stock.summary !== "No summary available.";
+  const hasTarget =
+    !!stock.analystTargetPrice && stock.analystTargetPrice !== "N/A";
   const hasEps = !!stock.eps && stock.eps !== "N/A";
   const risk = stock.riskLevel || "Research";
 
@@ -304,45 +389,102 @@ function getCompanyInsights(stock: Stock) {
     AAPL: {
       whatItDoes:
         "Apple sells consumer technology products like iPhone, Mac, iPad, Apple Watch, AirPods, and services such as iCloud, Apple Music, Apple TV+, and the App Store.",
-      watchItems: ["iPhone sales", "Services revenue", "Profit margin", "New products"],
-      strengths: ["Strong brand loyalty", "Huge cash flow", "Large services ecosystem"],
-      risks: ["Depends heavily on iPhone demand", "High investor expectations", "Regulatory pressure"],
+      watchItems: [
+        "iPhone sales",
+        "Services revenue",
+        "Profit margin",
+        "New products",
+      ],
+      strengths: [
+        "Strong brand loyalty",
+        "Huge cash flow",
+        "Large services ecosystem",
+      ],
+      risks: [
+        "Depends heavily on iPhone demand",
+        "High investor expectations",
+        "Regulatory pressure",
+      ],
       verdict:
         "Apple is a mature, high-quality company. Beginners can study it as a stable large-cap business, but valuation still matters.",
     },
     MSFT: {
       whatItDoes:
         "Microsoft makes money from cloud computing, business software, Windows, Office, Xbox, LinkedIn, and AI tools.",
-      watchItems: ["Azure growth", "AI adoption", "Enterprise software demand", "Profit margin"],
-      strengths: ["Strong enterprise customer base", "Major cloud business", "Recurring software revenue"],
-      risks: ["Cloud competition", "AI spending costs", "Valuation risk if growth slows"],
+      watchItems: [
+        "Azure growth",
+        "AI adoption",
+        "Enterprise software demand",
+        "Profit margin",
+      ],
+      strengths: [
+        "Strong enterprise customer base",
+        "Major cloud business",
+        "Recurring software revenue",
+      ],
+      risks: [
+        "Cloud competition",
+        "AI spending costs",
+        "Valuation risk if growth slows",
+      ],
       verdict:
         "Microsoft is a strong software and cloud company. Beginners can learn a lot from its recurring revenue model.",
     },
     NVDA: {
       whatItDoes:
         "NVIDIA designs chips used in gaming, artificial intelligence, data centers, robotics, and professional graphics.",
-      watchItems: ["Data center revenue", "AI chip demand", "Competition", "Profit margin"],
-      strengths: ["Leader in AI chips", "Strong data center demand", "High-margin business"],
-      risks: ["Very high expectations", "AI demand could slow", "Competition may increase"],
+      watchItems: [
+        "Data center revenue",
+        "AI chip demand",
+        "Competition",
+        "Profit margin",
+      ],
+      strengths: [
+        "Leader in AI chips",
+        "Strong data center demand",
+        "High-margin business",
+      ],
+      risks: [
+        "Very high expectations",
+        "AI demand could slow",
+        "Competition may increase",
+      ],
       verdict:
         "NVIDIA is a high-growth AI stock. It can be exciting, but high expectations can make the stock volatile.",
     },
     TSLA: {
       whatItDoes:
         "Tesla builds electric vehicles, battery products, charging infrastructure, solar products, and self-driving software.",
-      watchItems: ["Vehicle deliveries", "Margins", "EV competition", "Self-driving progress"],
+      watchItems: [
+        "Vehicle deliveries",
+        "Margins",
+        "EV competition",
+        "Self-driving progress",
+      ],
       strengths: ["Strong EV brand", "Large charging network", "Software potential"],
-      risks: ["High competition", "Margin pressure", "Stock often reacts strongly to news"],
+      risks: [
+        "High competition",
+        "Margin pressure",
+        "Stock often reacts strongly to news",
+      ],
       verdict:
         "Tesla is a high-volatility stock. Beginners should be careful and understand that expectations drive a lot of the price action.",
     },
     AMD: {
       whatItDoes:
         "AMD designs CPUs and GPUs used in PCs, gaming systems, servers, data centers, and AI-related computing.",
-      watchItems: ["Data center growth", "AI chips", "Competition with NVIDIA and Intel", "PC demand"],
+      watchItems: [
+        "Data center growth",
+        "AI chips",
+        "Competition with NVIDIA and Intel",
+        "PC demand",
+      ],
       strengths: ["Competitive chips", "AI and data center opportunity", "Gaming exposure"],
-      risks: ["Strong competition", "Chip cycles can be volatile", "High AI expectations"],
+      risks: [
+        "Strong competition",
+        "Chip cycles can be volatile",
+        "High AI expectations",
+      ],
       verdict:
         "AMD is a semiconductor growth stock. It can be interesting, but chip stocks can move in cycles.",
     },
@@ -357,9 +499,22 @@ function getCompanyInsights(stock: Stock) {
       stock.breakdown ||
       stock.summary ||
       `${stock.name} is a company in the ${stock.sector || "Unknown"} sector.`,
-    watchItems: ["Revenue growth", "Profit margin", "Debt and cash flow", "Competition"],
-    strengths: ["Can be compared against competitors", "Useful for learning stock research", "May have a clear market niche"],
-    risks: ["Limited data in this prototype", "Stock price can move quickly", "More research is needed"],
+    watchItems: [
+      "Revenue growth",
+      "Profit margin",
+      "Debt and cash flow",
+      "Competition",
+    ],
+    strengths: [
+      "Can be compared against competitors",
+      "Useful for learning stock research",
+      "May have a clear market niche",
+    ],
+    risks: [
+      "Limited data in this prototype",
+      "Stock price can move quickly",
+      "More research is needed",
+    ],
     verdict:
       "This stock needs more research. Use the Yahoo Finance link and company filings before making any investment decision.",
   };
@@ -390,9 +545,7 @@ function WeekRangeBar({ stock }: { stock: Stock }) {
     <div className="bg-slate-900 rounded-2xl p-4">
       <div className="flex justify-between items-center mb-3">
         <p className="text-sm text-slate-400 font-bold">52-week range</p>
-        <p className="text-xs text-slate-600">
-          Current: ${stock.price}
-        </p>
+        <p className="text-xs text-slate-600">Current: ${stock.price}</p>
       </div>
 
       <div className="h-3 bg-[#090d18] rounded-full relative overflow-hidden">
@@ -413,9 +566,104 @@ function WeekRangeBar({ stock }: { stock: Stock }) {
         </p>
       ) : (
         <p className="text-xs text-slate-600 mt-2">
-          Current price is about {position.toFixed(0)}% of the way from the 52-week low to high.
+          Current price is about {position.toFixed(0)}% of the way from the
+          52-week low to high.
         </p>
       )}
+    </div>
+  );
+}
+
+function NewsSection({ stock }: { stock: Stock }) {
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [isLoadingNews, setIsLoadingNews] = useState(false);
+  const [newsWarning, setNewsWarning] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadNews() {
+      try {
+        setIsLoadingNews(true);
+        setNewsWarning("");
+
+        const response = await fetch(`/api/news?symbol=${stock.ticker}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Could not load news.");
+        }
+
+        if (!ignore) {
+          setNews(data.news || []);
+          setNewsWarning(data.warning || "");
+        }
+      } catch {
+        if (!ignore) {
+          setNews([]);
+          setNewsWarning("News could not be loaded right now.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingNews(false);
+        }
+      }
+    }
+
+    loadNews();
+
+    return () => {
+      ignore = true;
+    };
+  }, [stock.ticker]);
+
+  return (
+    <div className="bg-slate-900 rounded-2xl p-4 mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm text-purple-400 font-bold">Recent news</p>
+        <span className="text-[10px] text-slate-500">Headlines</span>
+      </div>
+
+      {isLoadingNews ? (
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
+          <div className="h-4 w-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          Loading news...
+        </div>
+      ) : news.length === 0 ? (
+        <p className="text-sm text-slate-500">No news available right now.</p>
+      ) : (
+        <div className="space-y-3">
+          {news.slice(0, 4).map((item, index) => (
+            <a
+              key={`${item.title}-${index}`}
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className="block bg-[#090d18] border border-slate-800 rounded-2xl p-3 hover:border-purple-400 transition"
+            >
+              <div className="flex justify-between gap-3">
+                <p className="text-sm font-bold text-slate-100 leading-snug">
+                  {item.title}
+                </p>
+
+                <span className="text-[10px] h-fit bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">
+                  {item.sentiment || "Neutral"}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-500 mt-1">
+                {item.source} • {item.publishedAt}
+              </p>
+
+              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                {item.summary}
+              </p>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {newsWarning && <p className="text-xs text-yellow-400 mt-3">{newsWarning}</p>}
     </div>
   );
 }
@@ -520,9 +768,16 @@ function StockDetailModal({
 
         <div className="grid grid-cols-2 gap-3 mt-5">
           <DataCard label="Price" value={`$${stock.price}`} />
-          <DataCard label="Today" value={stock.change} note={stock.changeDollar || "$0.00"} />
+          <DataCard
+            label="Today"
+            value={stock.change}
+            note={stock.changeDollar || "$0.00"}
+          />
           <DataCard label="Previous close" value={stock.previousClose || "N/A"} />
-          <DataCard label="Analyst target" value={stock.analystTargetPrice || "N/A"} />
+          <DataCard
+            label="Analyst target"
+            value={stock.analystTargetPrice || "N/A"}
+          />
           <DataCard label="Market cap" value={stock.marketCap || "N/A"} />
           <DataCard label="P/E" value={stock.peRatio || "N/A"} />
           <DataCard label="EPS" value={stock.eps || "N/A"} />
@@ -534,6 +789,8 @@ function StockDetailModal({
         <div className="mt-4">
           <WeekRangeBar stock={stock} />
         </div>
+
+        <NewsSection stock={stock} />
 
         <div className="bg-slate-900 rounded-2xl p-4 mt-4">
           <p className="text-sm text-green-400 font-bold mb-2">
@@ -702,9 +959,7 @@ function ListsPanel({
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-black text-lg">
-                            {stock.ticker}
-                          </h3>
+                          <h3 className="font-black text-lg">{stock.ticker}</h3>
 
                           <span className="text-[10px] bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full">
                             {stock.dataSource || "saved"}
@@ -884,9 +1139,7 @@ export default function Home() {
       } catch (error) {
         if (!ignore) {
           const message =
-            error instanceof Error
-              ? error.message
-              : "Could not load stock data.";
+            error instanceof Error ? error.message : "Could not load stock data.";
 
           setFetchError(message);
         }
@@ -1528,37 +1781,15 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-5 text-left">
-            <div className="bg-slate-900 rounded-2xl p-3">
-              <p className="text-xs text-slate-500">Target</p>
-              <p className="font-bold mt-1">{stock.analystTargetPrice || "N/A"}</p>
-            </div>
-
-            <div className="bg-slate-900 rounded-2xl p-3">
-              <p className="text-xs text-slate-500">EPS</p>
-              <p className="font-bold mt-1">{stock.eps || "N/A"}</p>
-            </div>
-
-            <div className="bg-slate-900 rounded-2xl p-3">
-              <p className="text-xs text-slate-500">Beta</p>
-              <p className="font-bold mt-1">{stock.beta || "N/A"}</p>
-            </div>
+            <DataCard label="Target" value={stock.analystTargetPrice || "N/A"} />
+            <DataCard label="EPS" value={stock.eps || "N/A"} />
+            <DataCard label="Beta" value={stock.beta || "N/A"} />
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-3 text-left">
-            <div className="bg-slate-900 rounded-2xl p-3">
-              <p className="text-xs text-slate-500">Market Cap</p>
-              <p className="font-bold mt-1">{stock.marketCap || "N/A"}</p>
-            </div>
-
-            <div className="bg-slate-900 rounded-2xl p-3">
-              <p className="text-xs text-slate-500">P/E</p>
-              <p className="font-bold mt-1">{stock.peRatio || "N/A"}</p>
-            </div>
-
-            <div className="bg-slate-900 rounded-2xl p-3">
-              <p className="text-xs text-slate-500">Risk</p>
-              <p className="font-bold mt-1">{stock.riskLevel || "Research"}</p>
-            </div>
+            <DataCard label="Market Cap" value={stock.marketCap || "N/A"} />
+            <DataCard label="P/E" value={stock.peRatio || "N/A"} />
+            <DataCard label="Risk" value={stock.riskLevel || "Research"} />
           </div>
 
           <div className="mt-5">
