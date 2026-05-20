@@ -461,7 +461,11 @@ function getCompanyInsights(stock: Stock) {
         "EV competition",
         "Self-driving progress",
       ],
-      strengths: ["Strong EV brand", "Large charging network", "Software potential"],
+      strengths: [
+        "Strong EV brand",
+        "Large charging network",
+        "Software potential",
+      ],
       risks: [
         "High competition",
         "Margin pressure",
@@ -479,7 +483,11 @@ function getCompanyInsights(stock: Stock) {
         "Competition with NVIDIA and Intel",
         "PC demand",
       ],
-      strengths: ["Competitive chips", "AI and data center opportunity", "Gaming exposure"],
+      strengths: [
+        "Competitive chips",
+        "AI and data center opportunity",
+        "Gaming exposure",
+      ],
       risks: [
         "Strong competition",
         "Chip cycles can be volatile",
@@ -663,7 +671,9 @@ function NewsSection({ stock }: { stock: Stock }) {
         </div>
       )}
 
-      {newsWarning && <p className="text-xs text-yellow-400 mt-3">{newsWarning}</p>}
+      {newsWarning && (
+        <p className="text-xs text-yellow-400 mt-3">{newsWarning}</p>
+      )}
     </div>
   );
 }
@@ -761,8 +771,7 @@ function StockDetailModal({
           </svg>
 
           <p className="text-xs text-slate-600 mt-2 text-center">
-            Chart is sample-shaped for now. Price and company data may be live,
-            cached, or fallback.
+            Chart uses live, cached, or fallback historical data.
           </p>
         </div>
 
@@ -1121,16 +1130,23 @@ export default function Home() {
         setFetchError("");
         setStock(null);
 
-        const response = await fetch(`/api/stock?symbol=${currentSymbol}`);
-        const data = await response.json();
+        const [stockResponse, chartResponse] = await Promise.all([
+          fetch(`/api/stock?symbol=${currentSymbol}`),
+          fetch(`/api/chart?symbol=${currentSymbol}`),
+        ]);
 
-        if (!response.ok) {
-          throw new Error(data.error || "Could not load stock data.");
+        const stockData = await stockResponse.json();
+        const chartData = await chartResponse.json();
+
+        if (!stockResponse.ok) {
+          throw new Error(stockData.error || "Could not load stock data.");
         }
 
         const liveStock: Stock = {
-          ...data,
-          chartData: createSampleChartData(data.price, data.change),
+          ...stockData,
+          chartData:
+            chartData?.chartData ||
+            createSampleChartData(stockData.price, stockData.change),
         };
 
         if (!ignore) {
@@ -1349,21 +1365,30 @@ export default function Home() {
     setFetchError("");
     setStock(null);
 
-    fetch(`/api/stock?symbol=${currentSymbol}`)
-      .then((response) =>
-        response.json().then((data) => ({
-          ok: response.ok,
-          data,
-        }))
-      )
-      .then(({ ok, data }) => {
+    Promise.all([
+      fetch(`/api/stock?symbol=${currentSymbol}`),
+      fetch(`/api/chart?symbol=${currentSymbol}`),
+    ])
+      .then(async ([stockResponse, chartResponse]) => {
+        const stockData = await stockResponse.json();
+        const chartData = await chartResponse.json();
+
+        return {
+          ok: stockResponse.ok,
+          stockData,
+          chartData,
+        };
+      })
+      .then(({ ok, stockData, chartData }) => {
         if (!ok) {
-          throw new Error(data.error || "Could not load stock data.");
+          throw new Error(stockData.error || "Could not load stock data.");
         }
 
         setStock({
-          ...data,
-          chartData: createSampleChartData(data.price, data.change),
+          ...stockData,
+          chartData:
+            chartData?.chartData ||
+            createSampleChartData(stockData.price, stockData.change),
         });
       })
       .catch((error) => {
@@ -1778,6 +1803,10 @@ export default function Home() {
                 strokeLinejoin="round"
               />
             </svg>
+
+            <p className="text-xs text-slate-600 mt-2 text-center">
+              Chart uses live, cached, or fallback historical data.
+            </p>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-5 text-left">
