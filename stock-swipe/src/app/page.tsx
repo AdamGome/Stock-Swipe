@@ -5,6 +5,18 @@ import { useEffect, useState, type PointerEvent } from "react";
 type ChartRange = "1D" | "1W" | "1M" | "3M" | "1Y";
 type ListTab = "watchlist" | "passed";
 
+type StockFilter =
+  | "all"
+  | "tech"
+  | "ai"
+  | "banks"
+  | "crypto"
+  | "etfs"
+  | "consumer"
+  | "healthcare"
+  | "energy"
+  | "speculative";
+
 type Stock = {
   ticker: string;
   name: string;
@@ -42,23 +54,73 @@ type NewsItem = {
   sentiment: string;
 };
 
-const defaultStockSymbols = [
-  "AAPL",
-  "MSFT",
-  "NVDA",
-  "TSLA",
-  "AMD",
-  "GOOGL",
-  "AMZN",
-  "META",
-  "NFLX",
-  "PLTR",
-  "SOFI",
-  "COIN",
-  "SHOP",
-  "DIS",
-  "JPM",
+type StockIdea = {
+  symbol: string;
+  filters: StockFilter[];
+};
+
+const stockUniverse: StockIdea[] = [
+  { symbol: "AAPL", filters: ["tech", "consumer"] },
+  { symbol: "MSFT", filters: ["tech", "ai"] },
+  { symbol: "NVDA", filters: ["tech", "ai"] },
+  { symbol: "AMD", filters: ["tech", "ai"] },
+  { symbol: "GOOGL", filters: ["tech", "ai"] },
+  { symbol: "META", filters: ["tech", "ai"] },
+  { symbol: "AMZN", filters: ["tech", "consumer"] },
+  { symbol: "TSLA", filters: ["consumer", "speculative"] },
+  { symbol: "NFLX", filters: ["consumer"] },
+  { symbol: "PLTR", filters: ["ai", "speculative"] },
+  { symbol: "SOFI", filters: ["banks", "speculative"] },
+  { symbol: "COIN", filters: ["crypto", "speculative"] },
+  { symbol: "HOOD", filters: ["crypto", "speculative"] },
+  { symbol: "SHOP", filters: ["tech", "consumer"] },
+  { symbol: "DIS", filters: ["consumer"] },
+  { symbol: "JPM", filters: ["banks"] },
+  { symbol: "BAC", filters: ["banks"] },
+  { symbol: "WFC", filters: ["banks"] },
+  { symbol: "GS", filters: ["banks"] },
+  { symbol: "V", filters: ["banks", "tech"] },
+  { symbol: "MA", filters: ["banks", "tech"] },
+  { symbol: "MCD", filters: ["consumer"] },
+  { symbol: "KO", filters: ["consumer"] },
+  { symbol: "NKE", filters: ["consumer"] },
+  { symbol: "COST", filters: ["consumer"] },
+  { symbol: "WMT", filters: ["consumer"] },
+  { symbol: "UNH", filters: ["healthcare"] },
+  { symbol: "JNJ", filters: ["healthcare"] },
+  { symbol: "PFE", filters: ["healthcare"] },
+  { symbol: "LLY", filters: ["healthcare"] },
+  { symbol: "XOM", filters: ["energy"] },
+  { symbol: "CVX", filters: ["energy"] },
+  { symbol: "OXY", filters: ["energy"] },
+  { symbol: "SPY", filters: ["etfs"] },
+  { symbol: "QQQ", filters: ["etfs", "tech"] },
+  { symbol: "VOO", filters: ["etfs"] },
+  { symbol: "VTI", filters: ["etfs"] },
+  { symbol: "ARKK", filters: ["etfs", "speculative"] },
+  { symbol: "RIOT", filters: ["crypto", "speculative"] },
+  { symbol: "MARA", filters: ["crypto", "speculative"] },
+  { symbol: "RBLX", filters: ["tech", "speculative"] },
+  { symbol: "SNAP", filters: ["tech", "speculative"] },
+  { symbol: "PYPL", filters: ["banks", "tech"] },
+  { symbol: "UBER", filters: ["tech", "consumer"] },
+  { symbol: "BABA", filters: ["tech", "consumer"] },
 ];
+
+const filterOptions: { id: StockFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "tech", label: "Tech" },
+  { id: "ai", label: "AI / Chips" },
+  { id: "banks", label: "Banks" },
+  { id: "crypto", label: "Crypto" },
+  { id: "etfs", label: "ETFs" },
+  { id: "consumer", label: "Consumer" },
+  { id: "healthcare", label: "Healthcare" },
+  { id: "energy", label: "Energy" },
+  { id: "speculative", label: "Speculative" },
+];
+
+const defaultStockSymbols = stockUniverse.map((stock) => stock.symbol);
 
 const popularStockIdeas = [
   "HOOD",
@@ -718,7 +780,9 @@ function StockDetailModal({
           </button>
         </div>
 
-        <div className={`mt-6 rounded-2xl p-4 border ${match.bg} ${match.border}`}>
+        <div
+          className={`mt-6 rounded-2xl p-4 border ${match.bg} ${match.border}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-slate-400">Match Score</p>
@@ -1062,6 +1126,7 @@ export default function Home() {
   const [extraSymbols, setExtraSymbols] = useState<string[]>([]);
   const [tickerInput, setTickerInput] = useState("");
   const [tickerMessage, setTickerMessage] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState<StockFilter>("all");
   const [lastAction, setLastAction] = useState<{
     list: "liked" | "passed";
     stock: Stock;
@@ -1102,8 +1167,15 @@ export default function Home() {
     setLoaded(true);
   }, []);
 
+  const filteredDefaultSymbols =
+    selectedFilter === "all"
+      ? defaultStockSymbols
+      : stockUniverse
+          .filter((stockIdea) => stockIdea.filters.includes(selectedFilter))
+          .map((stockIdea) => stockIdea.symbol);
+
   const allStockSymbols = Array.from(
-    new Set([...defaultStockSymbols, ...extraSymbols])
+    new Set([...filteredDefaultSymbols, ...extraSymbols])
   );
 
   const alreadySeenTickers = [...liked, ...passed].map((savedStock) =>
@@ -1353,6 +1425,7 @@ export default function Home() {
     setExtraSymbols([]);
     setTickerInput("");
     setTickerMessage("");
+    setSelectedFilter("all");
     setLastAction(null);
     setSelectedStock(null);
     setSelectedRange("1M");
@@ -1439,6 +1512,9 @@ export default function Home() {
   }
 
   const totalSaved = liked.length + passed.length;
+  const selectedFilterLabel =
+    filterOptions.find((filter) => filter.id === selectedFilter)?.label ||
+    "All";
 
   function Header() {
     return (
@@ -1464,6 +1540,47 @@ export default function Home() {
           )}
         </button>
       </header>
+    );
+  }
+
+  function FilterBar() {
+    return (
+      <div className="w-full max-w-sm mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-slate-500">Swipe category</p>
+
+          <p className="text-xs text-slate-600">
+            {selectedFilter === "all" ? "Full deck" : selectedFilterLabel}
+          </p>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {filterOptions.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => {
+                setSelectedFilter(filter.id);
+                setSelectedRange("1M");
+                setTickerMessage("");
+                resetDrag();
+              }}
+              className={
+                selectedFilter === filter.id
+                  ? "whitespace-nowrap bg-green-400 text-black px-4 py-2 rounded-full text-xs font-bold"
+                  : "whitespace-nowrap bg-slate-900 border border-slate-800 text-slate-300 px-4 py-2 rounded-full text-xs hover:border-green-400"
+              }
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-slate-600 mt-1">
+          Later: sort by best match, biggest mover, highest P/E, lowest risk,
+          and highest beta.
+        </p>
+      </div>
     );
   }
 
@@ -1534,10 +1651,11 @@ export default function Home() {
           <h2 className="text-4xl font-bold">No more stocks</h2>
 
           <p className="text-slate-500 mt-4">
-            You have swiped through every stock in this version.
+            You have swiped through every stock in the {selectedFilterLabel} deck.
           </p>
 
           <div className="mt-8 w-full max-w-sm">
+            <FilterBar />
             <AddTickerBox />
           </div>
 
@@ -1599,7 +1717,9 @@ export default function Home() {
           <div className="text-center">
             <div className="mx-auto mb-5 h-10 w-10 border-4 border-green-400 border-t-transparent rounded-full animate-spin" />
             <h2 className="text-2xl font-bold">Fetching stock data...</h2>
-            <p className="text-slate-500 mt-2">Loading {currentSymbol}</p>
+            <p className="text-slate-500 mt-2">
+              Loading {currentSymbol} from {selectedFilterLabel}
+            </p>
           </div>
         </section>
 
@@ -1683,6 +1803,7 @@ export default function Home() {
       <Header />
 
       <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-6">
+        <FilterBar />
         <AddTickerBox />
 
         <p className="mb-4 text-sm text-slate-500 text-center">
@@ -1726,7 +1847,7 @@ export default function Home() {
 
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs bg-slate-900 text-slate-300 px-3 py-1 rounded-full">
-              {stock.industry || stock.sector || "Stock"}
+              {selectedFilterLabel}
             </p>
 
             <p className="text-xs bg-green-500/20 text-green-300 px-3 py-1 rounded-full">
@@ -1738,7 +1859,13 @@ export default function Home() {
             </p>
           </div>
 
-          <div className={`mb-4 rounded-2xl border ${match.bg} ${match.border} p-3`}>
+          <p className="text-xs text-slate-500 mb-2">
+            {stock.industry || stock.sector || "Stock"}
+          </p>
+
+          <div
+            className={`mb-4 rounded-2xl border ${match.bg} ${match.border} p-3`}
+          >
             <p className="text-xs text-slate-400">Match Score</p>
             <div className="flex justify-between items-center">
               <p className={`text-3xl font-black ${match.color}`}>
