@@ -359,8 +359,8 @@ async function fetchFmpData(symbol: string) {
     };
   }
 
-  const profileUrl = `https://financialmodelingprep.com/api/v3/profile/${symbol}?apikey=${apiKey}`;
-  const quoteUrl = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`;
+  const profileUrl = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;
+  const quoteUrl = `https://financialmodelingprep.com/stable/quote?symbol=${symbol}&apikey=${apiKey}`;
 
   const [profileResponse, quoteResponse] = await Promise.all([
     fetch(profileUrl, { cache: "no-store" }),
