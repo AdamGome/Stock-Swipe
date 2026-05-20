@@ -59,6 +59,16 @@ type StockIdea = {
   filters: StockFilter[];
 };
 
+type CachedStockBundle = {
+  savedAt: number;
+  stock: Stock;
+};
+
+type CachedNewsBundle = {
+  savedAt: number;
+  news: NewsItem[];
+};
+
 const stockUniverse: StockIdea[] = [
   { symbol: "AAPL", filters: ["tech", "consumer"] },
   { symbol: "MSFT", filters: ["tech", "ai"] },
@@ -135,6 +145,98 @@ const popularStockIdeas = [
 
 const ranges: ChartRange[] = ["1D", "1W", "1M", "3M", "1Y"];
 
+const STOCK_CACHE_PREFIX = "stockswipe_stock_cache_";
+const NEWS_CACHE_PREFIX = "stockswipe_news_cache_";
+const CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
+
+function getStockCacheKey(symbol: string) {
+  return `${STOCK_CACHE_PREFIX}${symbol.toUpperCase()}`;
+}
+
+function getNewsCacheKey(symbol: string) {
+  return `${NEWS_CACHE_PREFIX}${symbol.toUpperCase()}`;
+}
+
+function readCachedStock(symbol: string): Stock | null {
+  try {
+    const raw = localStorage.getItem(getStockCacheKey(symbol));
+
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw) as CachedStockBundle;
+
+    if (!cached.stock || !cached.savedAt) return null;
+
+    const isTooOld = Date.now() - cached.savedAt > CACHE_MAX_AGE;
+
+    if (isTooOld) return null;
+
+    return {
+      ...cached.stock,
+      dataSource: "cached",
+      warning:
+        "Using stock data saved in this browser because live API data is unavailable.",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedStock(symbol: string, stockToSave?: Stock) {
+  try {
+    if (!stockToSave) return;
+
+    const shouldSave =
+      stockToSave.price > 0 && stockToSave.dataSource !== "fallback";
+
+    if (!shouldSave) return;
+
+    const bundle: CachedStockBundle = {
+      savedAt: Date.now(),
+      stock: stockToSave,
+    };
+
+    localStorage.setItem(getStockCacheKey(symbol), JSON.stringify(bundle));
+  } catch {
+    // Ignore browser storage errors.
+  }
+}
+
+function readCachedNews(symbol: string): NewsItem[] | null {
+  try {
+    const raw = localStorage.getItem(getNewsCacheKey(symbol));
+
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw) as CachedNewsBundle;
+
+    if (!cached.news || !cached.savedAt) return null;
+
+    const isTooOld = Date.now() - cached.savedAt > CACHE_MAX_AGE;
+
+    if (isTooOld) return null;
+
+    return cached.news;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedNews(symbol: string, news: NewsItem[]) {
+  try {
+    if (!news || news.length === 0) return;
+
+    const bundle: CachedNewsBundle = {
+      savedAt: Date.now(),
+      news,
+    };
+
+    localStorage.setItem(getNewsCacheKey(symbol), JSON.stringify(bundle));
+  } catch {
+    // Ignore browser storage errors.
+  }
+}
+
 function parseChangePercent(change: string) {
   const cleaned = change.replace("%", "").replace("+", "");
   const value = Number(cleaned);
@@ -150,6 +252,7 @@ function parseDollarChange(changeDollar?: string) {
     .replace(",", "");
 
   const value = Number(cleaned);
+
   if (Number.isNaN(value)) return 0;
 
   return changeDollar.startsWith("-") ? -Math.abs(value) : value;
@@ -169,20 +272,90 @@ function createSampleChartData(price: number, change: string) {
 
   if (isPositive) {
     return {
-      "1D": [price * 0.985, price * 0.99, price * 0.988, price * 0.996, price * 1.002, price],
-      "1W": [price * 0.96, price * 0.97, price * 0.965, price * 0.985, price * 0.995, price],
-      "1M": [price * 0.92, price * 0.94, price * 0.935, price * 0.965, price * 0.985, price],
-      "3M": [price * 0.88, price * 0.9, price * 0.93, price * 0.95, price * 0.98, price],
-      "1Y": [price * 0.75, price * 0.82, price * 0.86, price * 0.91, price * 0.96, price],
+      "1D": [
+        price * 0.985,
+        price * 0.99,
+        price * 0.988,
+        price * 0.996,
+        price * 1.002,
+        price,
+      ],
+      "1W": [
+        price * 0.96,
+        price * 0.97,
+        price * 0.965,
+        price * 0.985,
+        price * 0.995,
+        price,
+      ],
+      "1M": [
+        price * 0.92,
+        price * 0.94,
+        price * 0.935,
+        price * 0.965,
+        price * 0.985,
+        price,
+      ],
+      "3M": [
+        price * 0.88,
+        price * 0.9,
+        price * 0.93,
+        price * 0.95,
+        price * 0.98,
+        price,
+      ],
+      "1Y": [
+        price * 0.75,
+        price * 0.82,
+        price * 0.86,
+        price * 0.91,
+        price * 0.96,
+        price,
+      ],
     };
   }
 
   return {
-    "1D": [price * 1.015, price * 1.01, price * 1.012, price * 1.006, price * 1.002, price],
-    "1W": [price * 1.06, price * 1.05, price * 1.04, price * 1.025, price * 1.01, price],
-    "1M": [price * 1.12, price * 1.09, price * 1.07, price * 1.04, price * 1.02, price],
-    "3M": [price * 1.18, price * 1.15, price * 1.1, price * 1.07, price * 1.03, price],
-    "1Y": [price * 1.25, price * 1.2, price * 1.15, price * 1.1, price * 1.05, price],
+    "1D": [
+      price * 1.015,
+      price * 1.01,
+      price * 1.012,
+      price * 1.006,
+      price * 1.002,
+      price,
+    ],
+    "1W": [
+      price * 1.06,
+      price * 1.05,
+      price * 1.04,
+      price * 1.025,
+      price * 1.01,
+      price,
+    ],
+    "1M": [
+      price * 1.12,
+      price * 1.09,
+      price * 1.07,
+      price * 1.04,
+      price * 1.02,
+      price,
+    ],
+    "3M": [
+      price * 1.18,
+      price * 1.15,
+      price * 1.1,
+      price * 1.07,
+      price * 1.03,
+      price,
+    ],
+    "1Y": [
+      price * 1.25,
+      price * 1.2,
+      price * 1.15,
+      price * 1.1,
+      price * 1.05,
+      price,
+    ],
   };
 }
 
@@ -232,8 +405,10 @@ function getMatchScore(stock: Stock) {
   const pe = Number(stock.peRatio);
   const beta = Number(stock.beta);
   const hasMarketCap = !!stock.marketCap && stock.marketCap !== "N/A";
-  const hasSummary = !!stock.summary && stock.summary !== "No summary available.";
-  const hasTarget = !!stock.analystTargetPrice && stock.analystTargetPrice !== "N/A";
+  const hasSummary =
+    !!stock.summary && stock.summary !== "No summary available.";
+  const hasTarget =
+    !!stock.analystTargetPrice && stock.analystTargetPrice !== "N/A";
   const hasEps = !!stock.eps && stock.eps !== "N/A";
   const risk = stock.riskLevel || "Research";
 
@@ -367,45 +542,110 @@ function getCompanyInsights(stock: Stock) {
     AAPL: {
       whatItDoes:
         "Apple sells consumer technology products like iPhone, Mac, iPad, Apple Watch, AirPods, and services such as iCloud, Apple Music, Apple TV+, and the App Store.",
-      watchItems: ["iPhone sales", "Services revenue", "Profit margin", "New products"],
-      strengths: ["Strong brand loyalty", "Huge cash flow", "Large services ecosystem"],
-      risks: ["Depends heavily on iPhone demand", "High investor expectations", "Regulatory pressure"],
+      watchItems: [
+        "iPhone sales",
+        "Services revenue",
+        "Profit margin",
+        "New products",
+      ],
+      strengths: [
+        "Strong brand loyalty",
+        "Huge cash flow",
+        "Large services ecosystem",
+      ],
+      risks: [
+        "Depends heavily on iPhone demand",
+        "High investor expectations",
+        "Regulatory pressure",
+      ],
       verdict:
         "Apple is a mature, high-quality company. Beginners can study it as a stable large-cap business, but valuation still matters.",
     },
     MSFT: {
       whatItDoes:
         "Microsoft makes money from cloud computing, business software, Windows, Office, Xbox, LinkedIn, and AI tools.",
-      watchItems: ["Azure growth", "AI adoption", "Enterprise software demand", "Profit margin"],
-      strengths: ["Strong enterprise customer base", "Major cloud business", "Recurring software revenue"],
-      risks: ["Cloud competition", "AI spending costs", "Valuation risk if growth slows"],
+      watchItems: [
+        "Azure growth",
+        "AI adoption",
+        "Enterprise software demand",
+        "Profit margin",
+      ],
+      strengths: [
+        "Strong enterprise customer base",
+        "Major cloud business",
+        "Recurring software revenue",
+      ],
+      risks: [
+        "Cloud competition",
+        "AI spending costs",
+        "Valuation risk if growth slows",
+      ],
       verdict:
         "Microsoft is a strong software and cloud company. Beginners can learn a lot from its recurring revenue model.",
     },
     NVDA: {
       whatItDoes:
         "NVIDIA designs chips used in gaming, artificial intelligence, data centers, robotics, and professional graphics.",
-      watchItems: ["Data center revenue", "AI chip demand", "Competition", "Profit margin"],
-      strengths: ["Leader in AI chips", "Strong data center demand", "High-margin business"],
-      risks: ["Very high expectations", "AI demand could slow", "Competition may increase"],
+      watchItems: [
+        "Data center revenue",
+        "AI chip demand",
+        "Competition",
+        "Profit margin",
+      ],
+      strengths: [
+        "Leader in AI chips",
+        "Strong data center demand",
+        "High-margin business",
+      ],
+      risks: [
+        "Very high expectations",
+        "AI demand could slow",
+        "Competition may increase",
+      ],
       verdict:
         "NVIDIA is a high-growth AI stock. It can be exciting, but high expectations can make the stock volatile.",
     },
     TSLA: {
       whatItDoes:
         "Tesla builds electric vehicles, battery products, charging infrastructure, solar products, and self-driving software.",
-      watchItems: ["Vehicle deliveries", "Margins", "EV competition", "Self-driving progress"],
-      strengths: ["Strong EV brand", "Large charging network", "Software potential"],
-      risks: ["High competition", "Margin pressure", "Stock often reacts strongly to news"],
+      watchItems: [
+        "Vehicle deliveries",
+        "Margins",
+        "EV competition",
+        "Self-driving progress",
+      ],
+      strengths: [
+        "Strong EV brand",
+        "Large charging network",
+        "Software potential",
+      ],
+      risks: [
+        "High competition",
+        "Margin pressure",
+        "Stock often reacts strongly to news",
+      ],
       verdict:
         "Tesla is a high-volatility stock. Beginners should be careful and understand that expectations drive a lot of the price action.",
     },
     AMD: {
       whatItDoes:
         "AMD designs CPUs and GPUs used in PCs, gaming systems, servers, data centers, and AI-related computing.",
-      watchItems: ["Data center growth", "AI chips", "Competition with NVIDIA and Intel", "PC demand"],
-      strengths: ["Competitive chips", "AI and data center opportunity", "Gaming exposure"],
-      risks: ["Strong competition", "Chip cycles can be volatile", "High AI expectations"],
+      watchItems: [
+        "Data center growth",
+        "AI chips",
+        "Competition with NVIDIA and Intel",
+        "PC demand",
+      ],
+      strengths: [
+        "Competitive chips",
+        "AI and data center opportunity",
+        "Gaming exposure",
+      ],
+      risks: [
+        "Strong competition",
+        "Chip cycles can be volatile",
+        "High AI expectations",
+      ],
       verdict:
         "AMD is a semiconductor growth stock. It can be interesting, but chip stocks can move in cycles.",
     },
@@ -420,9 +660,22 @@ function getCompanyInsights(stock: Stock) {
       stock.breakdown ||
       stock.summary ||
       `${stock.name} is a company in the ${stock.sector || "Unknown"} sector.`,
-    watchItems: ["Revenue growth", "Profit margin", "Debt and cash flow", "Competition"],
-    strengths: ["Can be compared against competitors", "Useful for learning stock research", "May have a clear market niche"],
-    risks: ["Limited data in this prototype", "Stock price can move quickly", "More research is needed"],
+    watchItems: [
+      "Revenue growth",
+      "Profit margin",
+      "Debt and cash flow",
+      "Competition",
+    ],
+    strengths: [
+      "Can be compared against competitors",
+      "Useful for learning stock research",
+      "May have a clear market niche",
+    ],
+    risks: [
+      "Limited data in this prototype",
+      "Stock price can move quickly",
+      "More research is needed",
+    ],
     verdict:
       "This stock needs more research. Use the Yahoo Finance link and company filings before making any investment decision.",
   };
@@ -440,7 +693,11 @@ function DataCard({
   compact?: boolean;
 }) {
   return (
-    <div className={compact ? "bg-slate-900 rounded-2xl p-3" : "bg-slate-900 rounded-2xl p-4"}>
+    <div
+      className={
+        compact ? "bg-slate-900 rounded-2xl p-3" : "bg-slate-900 rounded-2xl p-4"
+      }
+    >
       <p className="text-xs text-slate-500">{label}</p>
       <p className={compact ? "text-sm font-bold mt-1" : "text-lg font-bold mt-1"}>
         {value || "N/A"}
@@ -450,7 +707,13 @@ function DataCard({
   );
 }
 
-function WeekRangeBar({ stock, compact = false }: { stock: Stock; compact?: boolean }) {
+function WeekRangeBar({
+  stock,
+  compact = false,
+}: {
+  stock: Stock;
+  compact?: boolean;
+}) {
   const position = getWeekRangePosition(stock);
 
   return (
@@ -476,7 +739,9 @@ function WeekRangeBar({ stock, compact = false }: { stock: Stock; compact?: bool
         <p className="text-xs text-slate-600 mt-2">
           {position === null
             ? "Range data unavailable right now."
-            : `Current price is about ${position.toFixed(0)}% of the way from the 52-week low to high.`}
+            : `Current price is about ${position.toFixed(
+                0
+              )}% of the way from the 52-week low to high.`}
         </p>
       )}
     </div>
@@ -496,6 +761,8 @@ function NewsSection({ stock }: { stock: Stock }) {
         setIsLoadingNews(true);
         setNewsWarning("");
 
+        const cachedNews = readCachedNews(stock.ticker);
+
         const response = await fetch(`/api/news?symbol=${stock.ticker}`);
         const data = await response.json();
 
@@ -503,14 +770,36 @@ function NewsSection({ stock }: { stock: Stock }) {
           throw new Error(data.error || "Could not load news.");
         }
 
+        const incomingNews = data.news || [];
+
         if (!ignore) {
-          setNews(data.news || []);
-          setNewsWarning(data.warning || "");
+          if (data.dataSource === "fallback" && cachedNews) {
+            setNews(cachedNews);
+            setNewsWarning(
+              "Using news saved in this browser because live news is unavailable."
+            );
+          } else {
+            setNews(incomingNews);
+            setNewsWarning(data.warning || "");
+          }
+        }
+
+        if (data.dataSource !== "fallback" && incomingNews.length > 0) {
+          saveCachedNews(stock.ticker, incomingNews);
         }
       } catch {
         if (!ignore) {
-          setNews([]);
-          setNewsWarning("News could not be loaded right now.");
+          const cachedNews = readCachedNews(stock.ticker);
+
+          if (cachedNews) {
+            setNews(cachedNews);
+            setNewsWarning(
+              "Using news saved in this browser because live news is unavailable."
+            );
+          } else {
+            setNews([]);
+            setNewsWarning("News could not be loaded right now.");
+          }
         }
       } finally {
         if (!ignore) {
@@ -561,7 +850,7 @@ function NewsSection({ stock }: { stock: Stock }) {
               </div>
 
               <p className="text-xs text-slate-500 mt-1">
-                {item.source} • {item.publishedAt}
+                {item.source} - {item.publishedAt}
               </p>
 
               <p className="text-xs text-slate-400 mt-2 leading-relaxed">
@@ -615,7 +904,7 @@ function StockDetailModal({
             onClick={onClose}
             className="text-slate-400 hover:text-white text-2xl"
           >
-            ×
+            x
           </button>
         </div>
 
@@ -637,7 +926,7 @@ function StockDetailModal({
           <div className="mt-3 space-y-1">
             {match.reasons.slice(0, 4).map((reason) => (
               <p key={reason} className="text-xs text-slate-300">
-                • {reason}
+                - {reason}
               </p>
             ))}
           </div>
@@ -678,9 +967,16 @@ function StockDetailModal({
 
         <div className="grid grid-cols-2 gap-3 mt-5">
           <DataCard label="Price" value={`$${stock.price}`} />
-          <DataCard label="Today" value={stock.change} note={stock.changeDollar || "$0.00"} />
+          <DataCard
+            label="Today"
+            value={stock.change}
+            note={stock.changeDollar || "$0.00"}
+          />
           <DataCard label="Previous close" value={stock.previousClose || "N/A"} />
-          <DataCard label="Analyst target" value={stock.analystTargetPrice || "N/A"} />
+          <DataCard
+            label="Analyst target"
+            value={stock.analystTargetPrice || "N/A"}
+          />
           <DataCard label="Market cap" value={stock.marketCap || "N/A"} />
           <DataCard label="P/E" value={stock.peRatio || "N/A"} />
           <DataCard label="EPS" value={stock.eps || "N/A"} />
@@ -712,7 +1008,7 @@ function StockDetailModal({
           <div className="space-y-2">
             {insights.watchItems.map((item) => (
               <div key={item} className="flex gap-2 text-sm text-slate-300">
-                <span className="text-blue-400">•</span>
+                <span className="text-blue-400">-</span>
                 <span>{item}</span>
               </div>
             ))}
@@ -813,7 +1109,7 @@ function ListsPanel({
             onClick={onClose}
             className="text-slate-500 hover:text-white text-3xl"
           >
-            ×
+            x
           </button>
         </div>
 
@@ -1030,6 +1326,7 @@ export default function Home() {
       return;
     }
 
+    const symbolToLoad = currentSymbol;
     let ignore = false;
 
     async function loadStock() {
@@ -1038,9 +1335,11 @@ export default function Home() {
         setFetchError("");
         setStock(null);
 
+        const cachedStock = readCachedStock(symbolToLoad);
+
         const [stockResponse, chartResponse] = await Promise.all([
-          fetch(`/api/stock?symbol=${currentSymbol}`),
-          fetch(`/api/chart?symbol=${currentSymbol}`),
+          fetch(`/api/stock?symbol=${symbolToLoad}`),
+          fetch(`/api/chart?symbol=${symbolToLoad}`),
         ]);
 
         const stockData = await stockResponse.json();
@@ -1050,22 +1349,38 @@ export default function Home() {
           throw new Error(stockData.error || "Could not load stock data.");
         }
 
-        const liveStock: Stock = {
+        const incomingStock: Stock = {
           ...stockData,
           chartData:
             chartData?.chartData ||
             createSampleChartData(stockData.price, stockData.change),
         };
 
+        const finalStock: Stock =
+          incomingStock.dataSource === "fallback" && cachedStock
+            ? cachedStock
+            : incomingStock;
+
         if (!ignore) {
-          setStock(liveStock);
+          setStock(finalStock);
+        }
+
+        if (incomingStock.dataSource !== "fallback") {
+          saveCachedStock(symbolToLoad, incomingStock);
         }
       } catch (error) {
         if (!ignore) {
-          const message =
-            error instanceof Error ? error.message : "Could not load stock data.";
+          const cachedStock = readCachedStock(symbolToLoad);
 
-          setFetchError(message);
+          if (cachedStock) {
+            setStock(cachedStock);
+            setFetchError("");
+          } else {
+            const message =
+              error instanceof Error ? error.message : "Could not load stock data.";
+
+            setFetchError(message);
+          }
         }
       } finally {
         if (!ignore) {
@@ -1272,12 +1587,14 @@ export default function Home() {
   function retryCurrentStock() {
     if (!currentSymbol) return;
 
+    const symbolToRetry = currentSymbol;
+
     setFetchError("");
     setStock(null);
 
     Promise.all([
-      fetch(`/api/stock?symbol=${currentSymbol}`),
-      fetch(`/api/chart?symbol=${currentSymbol}`),
+      fetch(`/api/stock?symbol=${symbolToRetry}`),
+      fetch(`/api/chart?symbol=${symbolToRetry}`),
     ])
       .then(async ([stockResponse, chartResponse]) => {
         const stockData = await stockResponse.json();
@@ -1294,14 +1611,35 @@ export default function Home() {
           throw new Error(stockData.error || "Could not load stock data.");
         }
 
-        setStock({
+        const incomingStock: Stock = {
           ...stockData,
           chartData:
             chartData?.chartData ||
             createSampleChartData(stockData.price, stockData.change),
-        });
+        };
+
+        const cachedStock = readCachedStock(symbolToRetry);
+
+        const finalStock =
+          incomingStock.dataSource === "fallback" && cachedStock
+            ? cachedStock
+            : incomingStock;
+
+        setStock(finalStock);
+
+        if (incomingStock.dataSource !== "fallback") {
+          saveCachedStock(symbolToRetry, incomingStock);
+        }
       })
       .catch((error) => {
+        const cachedStock = readCachedStock(symbolToRetry);
+
+        if (cachedStock) {
+          setStock(cachedStock);
+          setFetchError("");
+          return;
+        }
+
         const message =
           error instanceof Error ? error.message : "Could not load stock data.";
 
@@ -1353,7 +1691,7 @@ export default function Home() {
       <header className="h-16 border-b border-slate-800 flex items-center justify-between px-5 shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-green-400 text-black w-8 h-8 rounded-full flex items-center justify-center font-black">
-            ↗
+            ^
           </div>
 
           <div>
@@ -1407,7 +1745,7 @@ export default function Home() {
               onClick={() => setShowFilters(false)}
               className="text-slate-400 hover:text-white text-3xl"
             >
-              ×
+              x
             </button>
           </div>
 
@@ -1482,10 +1820,11 @@ export default function Home() {
           </div>
 
           <div className="mt-6 bg-[#090d18] border border-slate-800 rounded-2xl p-4">
-            <p className="text-sm text-slate-300 font-bold">Coming next</p>
+            <p className="text-sm text-slate-300 font-bold">Browser cache is on</p>
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              Sorting by best match, biggest mover, highest P/E, lowest risk,
-              and highest beta.
+              Stocks and news that load successfully are saved in this browser
+              for up to 7 days, so the app can keep working better if the API
+              limit is hit.
             </p>
           </div>
         </div>
