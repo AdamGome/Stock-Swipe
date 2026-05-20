@@ -1,43 +1,7 @@
 import { NextResponse } from "next/server";
+import { supabaseServer } from "../../../lib/supabaseServer";
 
-export const dynamic = "force-dynamic";
-
-type AlphaQuoteResponse = {
-  "Global Quote"?: {
-    "01. symbol"?: string;
-    "05. price"?: string;
-    "06. volume"?: string;
-    "07. latest trading day"?: string;
-    "08. previous close"?: string;
-    "09. change"?: string;
-    "10. change percent"?: string;
-  };
-  Note?: string;
-  Information?: string;
-  Error?: string;
-};
-
-type AlphaOverviewResponse = {
-  Symbol?: string;
-  Name?: string;
-  Description?: string;
-  Sector?: string;
-  Industry?: string;
-  MarketCapitalization?: string;
-  PERatio?: string;
-  EPS?: string;
-  ProfitMargin?: string;
-  DividendYield?: string;
-  Beta?: string;
-  AnalystTargetPrice?: string;
-  "52WeekHigh"?: string;
-  "52WeekLow"?: string;
-  Note?: string;
-  Information?: string;
-  Error?: string;
-};
-
-type StockResponse = {
+type StockData = {
   ticker: string;
   name: string;
   price: number;
@@ -64,20 +28,7 @@ type StockResponse = {
   warning?: string;
 };
 
-const CACHE_TIME = 1000 * 60 * 60 * 6;
-const BLOCK_ALPHA_TIME = 1000 * 60 * 60;
-
-let alphaBlockedUntil = 0;
-
-const stockCache = new Map<
-  string,
-  {
-    savedAt: number;
-    stock: StockResponse;
-  }
->();
-
-const fallbackStocks: Record<string, StockResponse> = {
+const fallbackStocks: Record<string, StockData> = {
   AAPL: {
     ticker: "AAPL",
     name: "Apple Inc.",
@@ -104,17 +55,18 @@ const fallbackStocks: Record<string, StockResponse> = {
     breakdown:
       "Apple is one of the largest consumer technology companies in the world. Its business is built around hardware like the iPhone, Mac, and iPad, plus services like the App Store, iCloud, and Apple Music. Investors often watch iPhone sales, services growth, margins, and demand in major markets.",
     dataSource: "fallback",
+    warning: "Fallback data is being used.",
   },
   MSFT: {
     ticker: "MSFT",
     name: "Microsoft Corporation",
-    price: 420,
-    change: "+0.90%",
-    changeDollar: "+$3.74",
-    previousClose: "416.26",
+    price: 425,
+    change: "+0.85%",
+    changeDollar: "+$3.58",
+    previousClose: "421.42",
     latestTradingDay: "Sample",
     sector: "Technology",
-    industry: "Software Infrastructure",
+    industry: "Software",
     marketCap: "$3T+",
     peRatio: "High 30s",
     eps: "N/A",
@@ -127,18 +79,19 @@ const fallbackStocks: Record<string, StockResponse> = {
     volume: "N/A",
     riskLevel: "Medium",
     summary:
-      "Microsoft makes Windows, Office, Azure cloud services, Xbox products, LinkedIn, and AI-powered business software.",
+      "Microsoft sells software, cloud services, gaming products, LinkedIn services, and AI tools.",
     breakdown:
-      "Microsoft is a major software, cloud, gaming, and AI company. Its biggest areas include Azure, Microsoft 365, Windows, LinkedIn, Xbox, and enterprise software. Investors often watch cloud growth, AI adoption, business spending, and profit margins.",
+      "Microsoft is a major software and cloud company. Investors often watch Azure cloud growth, Office and Microsoft 365 subscriptions, AI adoption, and enterprise demand.",
     dataSource: "fallback",
+    warning: "Fallback data is being used.",
   },
   NVDA: {
     ticker: "NVDA",
     name: "NVIDIA Corporation",
-    price: 920,
-    change: "+2.80%",
-    changeDollar: "+$25.06",
-    previousClose: "894.94",
+    price: 120,
+    change: "+2.10%",
+    changeDollar: "+$2.47",
+    previousClose: "117.53",
     latestTradingDay: "Sample",
     sector: "Technology",
     industry: "Semiconductors",
@@ -154,133 +107,39 @@ const fallbackStocks: Record<string, StockResponse> = {
     volume: "N/A",
     riskLevel: "High",
     summary:
-      "NVIDIA designs powerful chips used in gaming, artificial intelligence, data centers, robotics, and professional graphics.",
+      "NVIDIA designs chips used for AI, gaming, data centers, robotics, and professional graphics.",
     breakdown:
-      "NVIDIA designs GPUs and AI chips used in gaming, data centers, artificial intelligence, robotics, and professional graphics. The company is closely tied to AI infrastructure demand. Investors often watch data center revenue, chip supply, competition, margins, and whether growth can keep up with expectations.",
+      "NVIDIA is a leading semiconductor company. Investors often watch AI chip demand, data center revenue, margins, and competition.",
     dataSource: "fallback",
-  },
-  TSLA: {
-    ticker: "TSLA",
-    name: "Tesla Inc.",
-    price: 177,
-    change: "-1.10%",
-    changeDollar: "-$1.97",
-    previousClose: "178.97",
-    latestTradingDay: "Sample",
-    sector: "Consumer Cyclical",
-    industry: "Auto Manufacturers",
-    marketCap: "$500B+",
-    peRatio: "High",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "None",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "High",
-    summary:
-      "Tesla builds electric vehicles, batteries, charging products, solar systems, and software for vehicle automation.",
-    breakdown:
-      "Tesla is best known for electric vehicles, but it also works on batteries, charging networks, solar products, self-driving software, and robotics. Investors often watch vehicle deliveries, margins, pricing pressure, competition, and progress in automation.",
-    dataSource: "fallback",
-  },
-  AMD: {
-    ticker: "AMD",
-    name: "Advanced Micro Devices Inc.",
-    price: 160,
-    change: "+1.50%",
-    changeDollar: "+$2.36",
-    previousClose: "157.64",
-    latestTradingDay: "Sample",
-    sector: "Technology",
-    industry: "Semiconductors",
-    marketCap: "$250B+",
-    peRatio: "High",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "None",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "High",
-    summary:
-      "AMD designs processors and graphics chips used in PCs, gaming systems, servers, and AI-related computing.",
-    breakdown:
-      "AMD designs CPUs and GPUs used in computers, gaming systems, servers, and AI workloads. It competes with Intel and NVIDIA. Investors often watch data center growth, AI chip progress, PC demand, gaming demand, and whether AMD can gain market share.",
-    dataSource: "fallback",
+    warning: "Fallback data is being used.",
   },
 };
 
-function cleanText(value?: string) {
-  if (!value) return "";
-
-  const trimmed = value.trim();
-
-  if (
-    trimmed === "" ||
-    trimmed.toLowerCase() === "none" ||
-    trimmed.toLowerCase() === "null" ||
-    trimmed === "-"
-  ) {
-    return "";
-  }
-
-  return trimmed;
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function getFallbackStock(symbol: string, warning?: string): StockResponse {
-  const fallback = fallbackStocks[symbol];
-
-  if (fallback) {
-    return {
-      ...fallback,
-      dataSource: "fallback",
-      warning,
-    };
-  }
-
-  return {
-    ticker: symbol,
-    name: symbol,
-    price: 0,
-    change: "0.00%",
-    changeDollar: "$0.00",
-    previousClose: "N/A",
-    latestTradingDay: "N/A",
-    sector: "Unknown",
-    industry: "Unknown",
-    marketCap: "N/A",
-    peRatio: "N/A",
-    eps: "N/A",
-    profitMargin: "N/A",
-    dividendYield: "N/A",
-    beta: "N/A",
-    analystTargetPrice: "N/A",
-    fiftyTwoWeekHigh: "N/A",
-    fiftyTwoWeekLow: "N/A",
-    volume: "N/A",
-    riskLevel: "Research",
-    summary:
-      "Company information is not available yet. Later, AI can generate a beginner-friendly summary here.",
-    breakdown:
-      "A full company breakdown is not available yet. Later, AI can explain what the company does, how it makes money, strengths, risks, and recent performance.",
-    dataSource: "fallback",
-    warning,
-  };
+function isUpdatedToday(value?: string | null) {
+  if (!value) return false;
+  return value.slice(0, 10) === todayKey();
 }
 
-function formatMarketCap(value?: string) {
-  const cleaned = cleanText(value);
+function formatCurrency(value: string | number | undefined) {
+  if (value === undefined || value === "") return "N/A";
 
-  if (!cleaned) return "N/A";
+  const numberValue = Number(value);
 
-  const numberValue = Number(cleaned);
+  if (Number.isNaN(numberValue)) return "N/A";
 
-  if (Number.isNaN(numberValue) || numberValue <= 0) return "N/A";
+  return `$${numberValue.toFixed(2)}`;
+}
+
+function formatLargeNumber(value: string | number | undefined) {
+  if (value === undefined || value === "") return "N/A";
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) return "N/A";
 
   if (numberValue >= 1_000_000_000_000) {
     return `$${(numberValue / 1_000_000_000_000).toFixed(2)}T`;
@@ -297,150 +156,212 @@ function formatMarketCap(value?: string) {
   return `$${numberValue.toLocaleString()}`;
 }
 
-function cleanChangePercent(value?: string) {
-  const cleaned = cleanText(value);
+function estimateRiskLevel(beta: string | undefined, peRatio: string | undefined) {
+  const betaNumber = Number(beta);
+  const peNumber = Number(peRatio);
 
-  if (!cleaned) return "0.00%";
+  if (!Number.isNaN(betaNumber) && betaNumber >= 1.5) return "High";
+  if (!Number.isNaN(peNumber) && peNumber >= 50) return "High";
+  if (!Number.isNaN(betaNumber) && betaNumber <= 0.9) return "Low";
 
-  const withoutPercent = cleaned.replace("%", "");
-  const numberValue = Number(withoutPercent);
-
-  if (Number.isNaN(numberValue)) return cleaned;
-
-  if (numberValue > 0) {
-    return `+${numberValue.toFixed(2)}%`;
-  }
-
-  return `${numberValue.toFixed(2)}%`;
+  return "Medium";
 }
 
-function cleanDollarChange(value?: string) {
-  const cleaned = cleanText(value);
+function getFallbackStock(symbol: string): StockData {
+  const upperSymbol = symbol.toUpperCase();
 
-  if (!cleaned) return "$0.00";
-
-  const numberValue = Number(cleaned);
-
-  if (Number.isNaN(numberValue)) return "$0.00";
-
-  if (numberValue > 0) {
-    return `+$${numberValue.toFixed(2)}`;
+  if (fallbackStocks[upperSymbol]) {
+    return fallbackStocks[upperSymbol];
   }
 
-  if (numberValue < 0) {
-    return `-$${Math.abs(numberValue).toFixed(2)}`;
-  }
-
-  return "$0.00";
+  return {
+    ticker: upperSymbol,
+    name: `${upperSymbol} Corporation`,
+    price: 100,
+    change: "+0.00%",
+    changeDollar: "$0.00",
+    previousClose: "100.00",
+    latestTradingDay: "Sample",
+    sector: "Unknown",
+    industry: "Unknown",
+    marketCap: "N/A",
+    peRatio: "N/A",
+    eps: "N/A",
+    profitMargin: "N/A",
+    dividendYield: "N/A",
+    beta: "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: "N/A",
+    fiftyTwoWeekLow: "N/A",
+    volume: "N/A",
+    riskLevel: "Research",
+    summary:
+      "This ticker is available in the app, but detailed fallback data is limited.",
+    breakdown:
+      "Research this company using the Yahoo Finance link and recent filings before making any decisions.",
+    dataSource: "fallback",
+    warning: "Fallback data is being used.",
+  };
 }
 
-function cleanPERatio(value?: string) {
-  const cleaned = cleanText(value);
+async function getCachedStock(symbol: string) {
+  const { data, error } = await supabaseServer
+    .from("stock_cache")
+    .select("symbol, stock_data, stock_updated_at")
+    .eq("symbol", symbol)
+    .maybeSingle();
 
-  if (!cleaned) return "N/A";
-
-  const numberValue = Number(cleaned);
-
-  if (Number.isNaN(numberValue) || numberValue <= 0) return "N/A";
-
-  return numberValue.toFixed(1);
-}
-
-function cleanNumberText(value?: string, decimals = 2) {
-  const cleaned = cleanText(value);
-
-  if (!cleaned) return "N/A";
-
-  const numberValue = Number(cleaned);
-
-  if (Number.isNaN(numberValue)) return cleaned;
-
-  return numberValue.toFixed(decimals);
-}
-
-function cleanDollarValue(value?: string) {
-  const cleaned = cleanText(value);
-
-  if (!cleaned) return "N/A";
-
-  const numberValue = Number(cleaned);
-
-  if (Number.isNaN(numberValue)) return "N/A";
-
-  return `$${numberValue.toFixed(2)}`;
-}
-
-function cleanPercentDecimal(value?: string) {
-  const cleaned = cleanText(value);
-
-  if (!cleaned) return "N/A";
-
-  const numberValue = Number(cleaned);
-
-  if (Number.isNaN(numberValue)) return cleaned;
-
-  return `${(numberValue * 100).toFixed(2)}%`;
-}
-
-function shortenDescription(description?: string, fallback?: string) {
-  const cleaned = cleanText(description);
-
-  const text =
-    cleaned ||
-    fallback ||
-    "Company summary is not available yet. Later, AI can generate a beginner-friendly explanation here.";
-
-  if (text.length <= 180) {
-    return text;
+  if (error) {
+    console.error("Supabase read error:", error.message);
+    return null;
   }
 
-  return `${text.slice(0, 180)}...`;
+  if (!data?.stock_data || !isUpdatedToday(data.stock_updated_at)) {
+    return null;
+  }
+
+  return {
+    ...(data.stock_data as StockData),
+    dataSource: "cached" as const,
+    warning: "Using shared database cache from today.",
+  };
 }
 
-function calculateRiskLevel(peRatio: string, changePercent: string, beta: string) {
-  const pe = Number(peRatio);
-  const change = Math.abs(
-    Number(changePercent.replace("%", "").replace("+", ""))
-  );
-  const betaValue = Number(beta);
+async function getOlderCachedStock(symbol: string) {
+  const { data, error } = await supabaseServer
+    .from("stock_cache")
+    .select("stock_data")
+    .eq("symbol", symbol)
+    .maybeSingle();
 
-  if (!Number.isNaN(change) && change >= 4) {
-    return "High";
+  if (error) {
+    console.error("Supabase older cache read error:", error.message);
+    return null;
   }
 
-  if (!Number.isNaN(betaValue) && betaValue >= 1.5) {
-    return "High";
-  }
+  if (!data?.stock_data) return null;
 
-  if (!Number.isNaN(pe) && pe >= 60) {
-    return "High";
-  }
-
-  if (!Number.isNaN(pe) && pe >= 30) {
-    return "Medium";
-  }
-
-  if (!Number.isNaN(betaValue) && betaValue >= 1.1) {
-    return "Medium";
-  }
-
-  return "Research";
+  return {
+    ...(data.stock_data as StockData),
+    dataSource: "cached" as const,
+    warning:
+      "Live data is unavailable, so older shared database cache is being used.",
+  };
 }
 
-function isLimitMessage(data: AlphaQuoteResponse | AlphaOverviewResponse) {
-  const message = data.Note || data.Information || data.Error || "";
+async function saveStockCache(symbol: string, stockData: StockData) {
+  const now = new Date().toISOString();
 
-  return (
-    message.toLowerCase().includes("api") ||
-    message.toLowerCase().includes("limit") ||
-    message.toLowerCase().includes("rate") ||
-    message.toLowerCase().includes("frequency")
-  );
+  const { error } = await supabaseServer.from("stock_cache").upsert({
+    symbol,
+    stock_data: stockData,
+    stock_updated_at: now,
+    updated_at: now,
+  });
+
+  if (error) {
+    console.error("Supabase write error:", error.message);
+  }
+}
+
+async function fetchTwelveDataStock(symbol: string): Promise<StockData> {
+  const apiKey = process.env.TWELVE_DATA_API_KEY;
+
+  if (!apiKey || apiKey === "your_twelve_data_key_here") {
+    throw new Error("Missing Twelve Data API key.");
+  }
+
+  const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${apiKey}`;
+  const profileUrl = `https://api.twelvedata.com/profile?symbol=${symbol}&apikey=${apiKey}`;
+
+  const [quoteResponse, profileResponse] = await Promise.all([
+    fetch(quoteUrl, { cache: "no-store" }),
+    fetch(profileUrl, { cache: "no-store" }),
+  ]);
+
+  const quoteData = await quoteResponse.json();
+  const profileData = await profileResponse.json();
+
+  if (quoteData.status === "error") {
+    throw new Error(quoteData.message || "Twelve Data quote error.");
+  }
+
+  const price = Number(quoteData.close || quoteData.price || quoteData.previous_close);
+  const previousClose = Number(quoteData.previous_close);
+  const changeNumber = Number(quoteData.change || 0);
+  const percentChange = Number(quoteData.percent_change || 0);
+
+  const signedChangeDollar =
+    changeNumber > 0
+      ? `+$${Math.abs(changeNumber).toFixed(2)}`
+      : changeNumber < 0
+      ? `-$${Math.abs(changeNumber).toFixed(2)}`
+      : "$0.00";
+
+  const signedPercent =
+    percentChange > 0
+      ? `+${percentChange.toFixed(2)}%`
+      : `${percentChange.toFixed(2)}%`;
+
+  const name =
+    quoteData.name ||
+    profileData.name ||
+    profileData.company_name ||
+    `${symbol} Corporation`;
+
+  const sector = profileData.sector || "Unknown";
+  const industry = profileData.industry || "Unknown";
+
+  return {
+    ticker: symbol,
+    name,
+    price: Number.isNaN(price) ? 0 : Number(price.toFixed(2)),
+    change: signedPercent,
+    changeDollar: signedChangeDollar,
+    previousClose: Number.isNaN(previousClose)
+      ? "N/A"
+      : formatCurrency(previousClose),
+    latestTradingDay:
+      quoteData.datetime ||
+      quoteData.timestamp ||
+      new Date().toISOString().slice(0, 10),
+    sector,
+    industry,
+    marketCap: formatLargeNumber(profileData.market_cap),
+    peRatio: profileData.pe_ratio ? String(profileData.pe_ratio) : "N/A",
+    eps: profileData.eps ? String(profileData.eps) : "N/A",
+    profitMargin: "N/A",
+    dividendYield: profileData.dividend_yield
+      ? `${Number(profileData.dividend_yield).toFixed(2)}%`
+      : "N/A",
+    beta: profileData.beta ? String(profileData.beta) : "N/A",
+    analystTargetPrice: "N/A",
+    fiftyTwoWeekHigh: quoteData.fifty_two_week?.high
+      ? formatCurrency(quoteData.fifty_two_week.high)
+      : "N/A",
+    fiftyTwoWeekLow: quoteData.fifty_two_week?.low
+      ? formatCurrency(quoteData.fifty_two_week.low)
+      : "N/A",
+    volume: quoteData.volume ? String(quoteData.volume) : "N/A",
+    riskLevel: estimateRiskLevel(
+      profileData.beta ? String(profileData.beta) : undefined,
+      profileData.pe_ratio ? String(profileData.pe_ratio) : undefined
+    ),
+    summary:
+      profileData.description ||
+      `${name} is a publicly traded company in the ${sector} sector.`,
+    breakdown:
+      profileData.description ||
+      `${name} is a publicly traded company in the ${sector} sector. Review revenue, earnings, valuation, risk, and recent news before making decisions.`,
+    dataSource: "live",
+  };
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = (searchParams.get("symbol") || "AAPL").trim().toUpperCase();
+  const rawSymbol = searchParams.get("symbol");
+
+  const symbol = rawSymbol?.trim().toUpperCase();
 
   if (!symbol) {
     return NextResponse.json(
@@ -449,157 +370,27 @@ export async function GET(request: Request) {
     );
   }
 
-  const cached = stockCache.get(symbol);
-
-  if (cached && Date.now() - cached.savedAt < CACHE_TIME) {
-    return NextResponse.json({
-      ...cached.stock,
-      dataSource: "cached",
-      warning: "Using cached stock data.",
-    });
-  }
-
-  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      getFallbackStock(
-        symbol,
-        "Missing API key, so fallback data is being used."
-      )
-    );
-  }
-
-  if (Date.now() < alphaBlockedUntil) {
-    return NextResponse.json(
-      getFallbackStock(
-        symbol,
-        "API limit was hit recently, so fallback data is being used."
-      )
-    );
-  }
-
-  const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
-  const overviewUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${apiKey}`;
-
   try {
-    const [quoteResponse, overviewResponse] = await Promise.all([
-      fetch(quoteUrl, { cache: "no-store" }),
-      fetch(overviewUrl, { cache: "no-store" }),
-    ]);
+    const cachedStock = await getCachedStock(symbol);
 
-    const quoteData = (await quoteResponse.json()) as AlphaQuoteResponse;
-    const overviewData =
-      (await overviewResponse.json()) as AlphaOverviewResponse;
-
-    if (isLimitMessage(quoteData) || isLimitMessage(overviewData)) {
-      alphaBlockedUntil = Date.now() + BLOCK_ALPHA_TIME;
-
-      return NextResponse.json(
-        getFallbackStock(
-          symbol,
-          "API limit reached, so fallback data is being used."
-        )
-      );
+    if (cachedStock) {
+      return NextResponse.json(cachedStock);
     }
 
-    const quote = quoteData["Global Quote"];
+    const liveStock = await fetchTwelveDataStock(symbol);
 
-    if (!quote || !quote["05. price"]) {
-      return NextResponse.json(
-        getFallbackStock(
-          symbol,
-          "Live data was unavailable, so fallback data is being used."
-        )
-      );
+    await saveStockCache(symbol, liveStock);
+
+    return NextResponse.json(liveStock);
+  } catch (error) {
+    console.error("Stock route error:", error);
+
+    const olderCachedStock = await getOlderCachedStock(symbol);
+
+    if (olderCachedStock) {
+      return NextResponse.json(olderCachedStock);
     }
 
-    const fallback = fallbackStocks[symbol];
-
-    const price = Number(quote["05. price"]);
-    const change = cleanChangePercent(quote["10. change percent"]);
-    const changeDollar = cleanDollarChange(quote["09. change"]);
-    const peRatio = cleanPERatio(overviewData.PERatio);
-    const beta = cleanNumberText(overviewData.Beta, 2);
-    const riskLevel = calculateRiskLevel(peRatio, change, beta);
-
-    const liveMarketCap = formatMarketCap(overviewData.MarketCapitalization);
-
-    const stock: StockResponse = {
-      ticker: symbol,
-      name: cleanText(overviewData.Name) || fallback?.name || symbol,
-      price: Number.isNaN(price)
-        ? fallback?.price || 0
-        : Number(price.toFixed(2)),
-      change,
-      changeDollar,
-      previousClose:
-        cleanDollarValue(quote["08. previous close"]) ||
-        fallback?.previousClose ||
-        "N/A",
-      latestTradingDay:
-        quote["07. latest trading day"] || fallback?.latestTradingDay || "N/A",
-      sector: cleanText(overviewData.Sector) || fallback?.sector || "Unknown",
-      industry:
-        cleanText(overviewData.Industry) || fallback?.industry || "Unknown",
-      marketCap:
-        liveMarketCap !== "N/A" ? liveMarketCap : fallback?.marketCap || "N/A",
-      peRatio: peRatio !== "N/A" ? peRatio : fallback?.peRatio || "N/A",
-      eps:
-        cleanNumberText(overviewData.EPS, 2) !== "N/A"
-          ? cleanNumberText(overviewData.EPS, 2)
-          : fallback?.eps || "N/A",
-      profitMargin:
-        cleanPercentDecimal(overviewData.ProfitMargin) !== "N/A"
-          ? cleanPercentDecimal(overviewData.ProfitMargin)
-          : fallback?.profitMargin || "N/A",
-      dividendYield:
-        cleanPercentDecimal(overviewData.DividendYield) !== "N/A"
-          ? cleanPercentDecimal(overviewData.DividendYield)
-          : fallback?.dividendYield || "N/A",
-      beta: beta !== "N/A" ? beta : fallback?.beta || "N/A",
-      analystTargetPrice:
-        cleanDollarValue(overviewData.AnalystTargetPrice) !== "N/A"
-          ? cleanDollarValue(overviewData.AnalystTargetPrice)
-          : fallback?.analystTargetPrice || "N/A",
-      fiftyTwoWeekHigh:
-        cleanDollarValue(overviewData["52WeekHigh"]) !== "N/A"
-          ? cleanDollarValue(overviewData["52WeekHigh"])
-          : fallback?.fiftyTwoWeekHigh || "N/A",
-      fiftyTwoWeekLow:
-        cleanDollarValue(overviewData["52WeekLow"]) !== "N/A"
-          ? cleanDollarValue(overviewData["52WeekLow"])
-          : fallback?.fiftyTwoWeekLow || "N/A",
-      volume: quote["06. volume"] || fallback?.volume || "N/A",
-      riskLevel,
-      summary: shortenDescription(overviewData.Description, fallback?.summary),
-      breakdown:
-        cleanText(overviewData.Description) ||
-        fallback?.breakdown ||
-        "A full company breakdown is not available yet.",
-      dataSource: "live",
-    };
-
-    stockCache.set(symbol, {
-      savedAt: Date.now(),
-      stock,
-    });
-
-    return NextResponse.json(stock);
-  } catch {
-    if (cached) {
-      return NextResponse.json({
-        ...cached.stock,
-        dataSource: "cached",
-        warning: "Live data failed, so cached data is being used.",
-      });
-    }
-
-    return NextResponse.json(
-      getFallbackStock(
-        symbol,
-        "Live data failed, so fallback data is being used."
-      )
-    );
+    return NextResponse.json(getFallbackStock(symbol));
   }
 }
