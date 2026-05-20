@@ -391,6 +391,13 @@ export async function GET(request: Request) {
       return NextResponse.json(olderCachedStock);
     }
 
-    return NextResponse.json(getFallbackStock(symbol));
+    return NextResponse.json(
+    {
+    error: "Real stock data is unavailable for this symbol right now.",
+    symbol,
+    dataSource: "unavailable",
+    },
+  { status: 503 }
+);
   }
 }
