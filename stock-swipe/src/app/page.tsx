@@ -494,6 +494,23 @@ function parseNumberValue(value?: string) {
   return Number.isNaN(numberValue) ? null : numberValue;
 }
 
+function hasUsefulValue(value?: string) {
+  if (!value) return false;
+
+  const cleaned = value.trim().toLowerCase();
+
+  return (
+    cleaned !== "n/a" &&
+    cleaned !== "na" &&
+    cleaned !== "none" &&
+    cleaned !== "unknown" &&
+    cleaned !== "$0.00" &&
+    cleaned !== "0" &&
+    cleaned !== "0.00" &&
+    cleaned !== "research"
+  );
+}
+
 function createSampleChartData(price: number, change: string) {
   const isPositive = parseChangePercent(change) >= 0;
 
@@ -1141,7 +1158,7 @@ function DataCard({
               event.stopPropagation();
               onHelp(helpId);
             }}
-            className="h-5 w-5 rounded-full border border-slate-600 text-slate-500 text-[11px] flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+            className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
             aria-label={`What is ${label}?`}
           >
             ?
@@ -1159,6 +1176,39 @@ function DataCard({
 
       {note && <p className="text-xs text-slate-600 mt-1">{note}</p>}
     </div>
+  );
+}
+
+function OptionalDataCard({
+  label,
+  value,
+  note,
+  compact = false,
+  helpId,
+  onHelp,
+  alwaysShow = false,
+}: {
+  label: string;
+  value?: string;
+  note?: string;
+  compact?: boolean;
+  helpId?: MetricHelpId;
+  onHelp?: (helpId: MetricHelpId) => void;
+  alwaysShow?: boolean;
+}) {
+  if (!alwaysShow && !hasUsefulValue(value)) {
+    return null;
+  }
+
+  return (
+    <DataCard
+      label={label}
+      value={value}
+      note={note}
+      compact={compact}
+      helpId={helpId}
+      onHelp={onHelp}
+    />
   );
 }
 
@@ -1183,7 +1233,7 @@ function WeekRangeBar({
             <button
               type="button"
               onClick={() => onHelp("fiftyTwoWeekRange")}
-              className="h-5 w-5 rounded-full border border-slate-600 text-slate-500 text-[11px] flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+              className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
             >
               ?
             </button>
@@ -1600,7 +1650,7 @@ function StockDetailModal({
               <button
                 type="button"
                 onClick={() => onHelp("matchScore")}
-                className="h-5 w-5 rounded-full border border-slate-600 text-slate-500 text-[11px] flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+                className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
               >
                 ?
               </button>
@@ -1648,46 +1698,46 @@ function StockDetailModal({
             helpId="previousClose"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="Analyst target"
-            value={stock.analystTargetPrice || "N/A"}
+            value={stock.analystTargetPrice}
             helpId="analystTargetPrice"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="Market cap"
-            value={stock.marketCap || "N/A"}
+            value={stock.marketCap}
             helpId="marketCap"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="P/E"
-            value={stock.peRatio || "N/A"}
+            value={stock.peRatio}
             helpId="peRatio"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="EPS"
-            value={stock.eps || "N/A"}
+            value={stock.eps}
             helpId="eps"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="Beta"
-            value={stock.beta || "N/A"}
+            value={stock.beta}
             note="Volatility"
             helpId="beta"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="Profit margin"
-            value={stock.profitMargin || "N/A"}
+            value={stock.profitMargin}
             helpId="profitMargin"
             onHelp={onHelp}
           />
-          <DataCard
+          <OptionalDataCard
             label="Dividend yield"
-            value={stock.dividendYield || "N/A"}
+            value={stock.dividendYield}
             helpId="dividendYield"
             onHelp={onHelp}
           />
@@ -2901,41 +2951,41 @@ export default function Home() {
           />
 
           <div className="grid grid-cols-3 gap-2 mt-4 text-left">
-            <DataCard
+            <OptionalDataCard
               compact
               label="Target"
-              value={stock.analystTargetPrice || "N/A"}
+              value={stock.analystTargetPrice}
               helpId="analystTargetPrice"
               onHelp={setActiveMetricHelp}
             />
-            <DataCard
+            <OptionalDataCard
               compact
               label="EPS"
-              value={stock.eps || "N/A"}
+              value={stock.eps}
               helpId="eps"
               onHelp={setActiveMetricHelp}
             />
-            <DataCard
+            <OptionalDataCard
               compact
               label="Beta"
-              value={stock.beta || "N/A"}
+              value={stock.beta}
               helpId="beta"
               onHelp={setActiveMetricHelp}
             />
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-2 text-left">
-            <DataCard
+            <OptionalDataCard
               compact
               label="Market Cap"
-              value={stock.marketCap || "N/A"}
+              value={stock.marketCap}
               helpId="marketCap"
               onHelp={setActiveMetricHelp}
             />
-            <DataCard
+            <OptionalDataCard
               compact
               label="P/E"
-              value={stock.peRatio || "N/A"}
+              value={stock.peRatio}
               helpId="peRatio"
               onHelp={setActiveMetricHelp}
             />
