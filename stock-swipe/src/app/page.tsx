@@ -5,6 +5,40 @@ import { useEffect, useState, type PointerEvent } from "react";
 type ChartRange = "1D" | "1W" | "1M" | "3M" | "1Y";
 type ListTab = "watchlist" | "passed";
 
+type ChartPoint = {
+  datetime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+type ChartStats = {
+  start: number;
+  end: number;
+  high: number;
+  low: number;
+  change: number;
+  changePercent: number;
+};
+
+type MetricHelpId =
+  | "price"
+  | "change"
+  | "previousClose"
+  | "marketCap"
+  | "peRatio"
+  | "eps"
+  | "beta"
+  | "profitMargin"
+  | "dividendYield"
+  | "analystTargetPrice"
+  | "volume"
+  | "fiftyTwoWeekRange"
+  | "riskLevel"
+  | "matchScore";
+
 type ListSort =
   | "saved"
   | "bestMatch"
@@ -51,6 +85,8 @@ type Stock = {
   summary?: string;
   breakdown?: string;
   chartData?: Partial<Record<ChartRange, number[]>>;
+  chartPoints?: Partial<Record<ChartRange, ChartPoint[]>>;
+  chartStats?: Partial<Record<ChartRange, ChartStats>>;
   dataSource?: "live" | "cached" | "fallback";
   warning?: string;
 };
@@ -150,6 +186,161 @@ const listSortOptions: { id: ListSort; label: string }[] = [
   { id: "highestBeta", label: "Highest Beta" },
   { id: "lowestRisk", label: "Lowest Risk" },
 ];
+
+const metricHelp: Record<
+  MetricHelpId,
+  {
+    title: string;
+    means: string;
+    good: string;
+    careful: string;
+    tip: string;
+  }
+> = {
+  price: {
+    title: "Stock Price",
+    means:
+      "The current price of one share of the company. A higher share price does not automatically mean the company is better.",
+    good:
+      "A useful price is one you compare against earnings, growth, market cap, and the company's history.",
+    careful:
+      "Do not judge a stock only by price. A $20 stock can be more expensive than a $300 stock depending on the business.",
+    tip:
+      "Beginners should focus more on valuation, growth, risk, and company quality than the share price alone.",
+  },
+  change: {
+    title: "Daily Change",
+    means: "How much the stock moved today, shown as dollars and percent.",
+    good:
+      "A positive daily change can show short-term momentum, especially if volume is also high.",
+    careful:
+      "One good or bad day does not prove a stock is good or bad. Stocks can move because of news, earnings, hype, or the whole market.",
+    tip:
+      "Use daily change as a quick signal, not as the main reason to buy or sell.",
+  },
+  previousClose: {
+    title: "Previous Close",
+    means: "The price the stock ended at during the previous trading day.",
+    good:
+      "It helps you compare today's price movement against yesterday's final price.",
+    careful:
+      "Previous close is useful context, but it does not tell you whether the stock is cheap or expensive.",
+    tip: "Compare current price to previous close to understand today's move.",
+  },
+  marketCap: {
+    title: "Market Cap",
+    means:
+      "Market cap is the total value of the company in the stock market. It is calculated by share price times shares outstanding.",
+    good:
+      "Large companies are often more stable. Smaller companies may have more growth potential but can be riskier.",
+    careful:
+      "Small-cap stocks can move sharply. Huge companies may be safer but may grow slower.",
+    tip:
+      "Beginners often start with large-cap companies or ETFs because they are usually easier to research.",
+  },
+  peRatio: {
+    title: "P/E Ratio",
+    means:
+      "P/E shows how much investors are paying for each $1 of company earnings.",
+    good:
+      "A lower P/E can mean a stock is cheaper, but only if the company is healthy. A reasonable P/E depends heavily on the industry.",
+    careful:
+      "A very high P/E means investors expect big growth. If growth slows, the stock can fall hard.",
+    tip:
+      "Compare P/E with similar companies. Do not compare a bank, a tech company, and a biotech company the same way.",
+  },
+  eps: {
+    title: "EPS",
+    means:
+      "EPS means earnings per share. It shows how much profit the company makes for each share.",
+    good:
+      "Positive and growing EPS is usually a good sign because it means the company is earning money.",
+    careful:
+      "Negative EPS means the company may not be profitable yet. That can be normal for young growth companies, but it adds risk.",
+    tip: "Look for EPS trends over time, not just one number.",
+  },
+  beta: {
+    title: "Beta",
+    means:
+      "Beta measures how volatile a stock is compared to the overall market.",
+    good:
+      "A beta near 1 means the stock tends to move like the market. Below 1 is usually calmer. Above 1 means more volatile.",
+    careful:
+      "High beta stocks can rise faster, but they can also fall faster when the market drops.",
+    tip:
+      "If you are new, be careful with very high beta stocks until you understand volatility.",
+  },
+  profitMargin: {
+    title: "Profit Margin",
+    means:
+      "Profit margin shows how much profit a company keeps from its revenue.",
+    good:
+      "Higher profit margins usually mean the company keeps more money from each sale.",
+    careful:
+      "Margins differ by industry. Grocery stores usually have lower margins than software companies.",
+    tip: "Compare profit margin to similar companies in the same industry.",
+  },
+  dividendYield: {
+    title: "Dividend Yield",
+    means:
+      "Dividend yield shows how much cash a company pays shareholders compared to its stock price.",
+    good: "A steady dividend can be useful for income-focused investors.",
+    careful:
+      "A very high dividend yield can be a warning sign if the company cannot afford to keep paying it.",
+    tip: "Do not chase dividend yield alone. Check if the business is healthy.",
+  },
+  analystTargetPrice: {
+    title: "Analyst Target Price",
+    means:
+      "This is an estimate from Wall Street analysts of where they think the stock could go.",
+    good: "It can be useful as one opinion or reference point.",
+    careful:
+      "Analysts can be wrong. Target prices change often and should not be trusted blindly.",
+    tip: "Use analyst targets as context, not as a buy signal.",
+  },
+  volume: {
+    title: "Volume",
+    means: "Volume shows how many shares traded during the day.",
+    good:
+      "Higher volume means more people are trading the stock, which usually means better liquidity.",
+    careful:
+      "A sudden volume spike can happen because of news, hype, earnings, or panic selling.",
+    tip:
+      "Big price moves with big volume are usually more meaningful than big moves with low volume.",
+  },
+  fiftyTwoWeekRange: {
+    title: "52-Week Range",
+    means:
+      "This shows the stock's lowest and highest price over the past year.",
+    good:
+      "A stock near its high can show strength. A stock near its low can sometimes offer opportunity.",
+    careful:
+      "Near the high can also mean overextended. Near the low can mean the company has real problems.",
+    tip:
+      "Ask why the stock is near its high or low before deciding what it means.",
+  },
+  riskLevel: {
+    title: "Risk Level",
+    means:
+      "Risk level is a simple label based on things like volatility, valuation, and available data.",
+    good:
+      "Lower risk may be better for beginners. Medium risk can be okay if you understand the company.",
+    careful:
+      "High risk means the stock may move more sharply or has more uncertainty.",
+    tip:
+      "Risk is not always bad, but you should know what risk you are taking.",
+  },
+  matchScore: {
+    title: "Match Score",
+    means:
+      "The match score is this app's simple rating based on available data like movement, valuation, risk, and company information.",
+    good:
+      "A higher score means the stock has more positive signals in this app's basic system.",
+    careful: "This is not a buy rating. It is only a research helper.",
+    tip:
+      "Use the match score to decide what to research more, not what to buy automatically.",
+  },
+};
 
 const defaultStockSymbols = stockUniverse.map((stock) => stock.symbol);
 
@@ -417,6 +608,68 @@ function createChartPoints(values: number[]) {
       return `${x},${y}`;
     })
     .join(" ");
+}
+
+function getChartStats(stock: Stock, range: ChartRange): ChartStats {
+  if (stock.chartStats?.[range]) {
+    return stock.chartStats[range]!;
+  }
+
+  const values = getChartValues(stock, range);
+
+  if (values.length === 0) {
+    return {
+      start: 0,
+      end: 0,
+      high: 0,
+      low: 0,
+      change: 0,
+      changePercent: 0,
+    };
+  }
+
+  const start = values[0];
+  const end = values[values.length - 1];
+  const high = Math.max(...values);
+  const low = Math.min(...values);
+  const change = end - start;
+  const changePercent = start === 0 ? 0 : (change / start) * 100;
+
+  return {
+    start: Number(start.toFixed(2)),
+    end: Number(end.toFixed(2)),
+    high: Number(high.toFixed(2)),
+    low: Number(low.toFixed(2)),
+    change: Number(change.toFixed(2)),
+    changePercent: Number(changePercent.toFixed(2)),
+  };
+}
+
+function formatSignedMoney(value: number) {
+  if (value > 0) return `+$${value.toFixed(2)}`;
+  if (value < 0) return `-$${Math.abs(value).toFixed(2)}`;
+  return "$0.00";
+}
+
+function formatSignedPercentValue(value: number) {
+  if (value > 0) return `+${value.toFixed(2)}%`;
+  return `${value.toFixed(2)}%`;
+}
+
+function formatChartDate(value?: string) {
+  if (!value) return "N/A";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function getWeekRangePosition(stock: Stock) {
@@ -776,27 +1029,134 @@ function getCompanyInsights(stock: Stock) {
   };
 }
 
+function MetricHelpModal({
+  helpId,
+  onClose,
+}: {
+  helpId: MetricHelpId;
+  onClose: () => void;
+}) {
+  const help = metricHelp[helpId];
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4">
+      <div className="bg-[#0f1320] border border-slate-700 rounded-3xl w-full max-w-md p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black">{help.title}</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Beginner explanation
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white text-3xl leading-none"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-4 mt-6">
+          <div className="bg-slate-900 rounded-2xl p-4">
+            <p className="text-xs text-blue-400 font-bold mb-1">
+              What it means
+            </p>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              {help.means}
+            </p>
+          </div>
+
+          <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-4">
+            <p className="text-xs text-green-400 font-bold mb-1">
+              Generally good
+            </p>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              {help.good}
+            </p>
+          </div>
+
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
+            <p className="text-xs text-red-400 font-bold mb-1">Be careful</p>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              {help.careful}
+            </p>
+          </div>
+
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
+            <p className="text-xs text-yellow-300 font-bold mb-1">
+              Beginner tip
+            </p>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              {help.tip}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full mt-6 bg-green-400 text-black py-3 rounded-full font-bold"
+        >
+          Got it
+        </button>
+
+        <p className="text-xs text-slate-500 mt-4 text-center">
+          Educational information only, not financial advice.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function DataCard({
   label,
   value,
   note,
   compact = false,
+  helpId,
+  onHelp,
 }: {
   label: string;
   value?: string;
   note?: string;
   compact?: boolean;
+  helpId?: MetricHelpId;
+  onHelp?: (helpId: MetricHelpId) => void;
 }) {
   return (
     <div
       className={
-        compact ? "bg-slate-900 rounded-2xl p-3" : "bg-slate-900 rounded-2xl p-4"
+        compact
+          ? "bg-slate-900 rounded-2xl p-3"
+          : "bg-slate-900 rounded-2xl p-4"
       }
     >
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={compact ? "text-sm font-bold mt-1" : "text-lg font-bold mt-1"}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">{label}</p>
+
+        {helpId && onHelp && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onHelp(helpId);
+            }}
+            className="h-5 w-5 rounded-full border border-slate-600 text-slate-500 text-[11px] flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+            aria-label={`What is ${label}?`}
+          >
+            ?
+          </button>
+        )}
+      </div>
+
+      <p
+        className={
+          compact ? "text-sm font-bold mt-1" : "text-lg font-bold mt-1"
+        }
+      >
         {value || "N/A"}
       </p>
+
       {note && <p className="text-xs text-slate-600 mt-1">{note}</p>}
     </div>
   );
@@ -805,16 +1165,31 @@ function DataCard({
 function WeekRangeBar({
   stock,
   compact = false,
+  onHelp,
 }: {
   stock: Stock;
   compact?: boolean;
+  onHelp?: (helpId: MetricHelpId) => void;
 }) {
   const position = getWeekRangePosition(stock);
 
   return (
     <div className="bg-slate-900 rounded-2xl p-4">
       <div className="flex justify-between items-center mb-3">
-        <p className="text-sm text-slate-400 font-bold">52-week range</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-slate-400 font-bold">52-week range</p>
+
+          {onHelp && (
+            <button
+              type="button"
+              onClick={() => onHelp("fiftyTwoWeekRange")}
+              className="h-5 w-5 rounded-full border border-slate-600 text-slate-500 text-[11px] flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+            >
+              ?
+            </button>
+          )}
+        </div>
+
         <p className="text-xs text-slate-600">Current: ${stock.price}</p>
       </div>
 
@@ -839,6 +1214,211 @@ function WeekRangeBar({
               )}% of the way from the 52-week low to high.`}
         </p>
       )}
+    </div>
+  );
+}
+
+function ChartBox({
+  stock,
+  selectedRange,
+  setSelectedRange,
+  onExpand,
+  size = "small",
+}: {
+  stock: Stock;
+  selectedRange: ChartRange;
+  setSelectedRange: (range: ChartRange) => void;
+  onExpand?: () => void;
+  size?: "small" | "large";
+}) {
+  const values = getChartValues(stock, selectedRange);
+  const chartPoints = createChartPoints(values);
+  const stats = getChartStats(stock, selectedRange);
+  const isPositive = stats.change >= 0;
+
+  return (
+    <div className="mt-5 bg-[#090d18] rounded-2xl p-3">
+      <div className="flex justify-between mb-2">
+        {ranges.map((range) => (
+          <button
+            key={range}
+            onClick={() => setSelectedRange(range)}
+            className={
+              selectedRange === range
+                ? "bg-green-400 text-black text-xs px-3 py-1 rounded-full font-bold"
+                : "bg-slate-800 text-slate-400 text-xs px-3 py-1 rounded-full"
+            }
+          >
+            {range}
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={onExpand}
+        className="w-full text-left"
+        disabled={!onExpand}
+      >
+        <div className="flex items-end justify-between mb-2">
+          <div>
+            <p className="text-xs text-slate-500">Range move</p>
+            <p
+              className={
+                isPositive
+                  ? "text-sm font-bold text-green-400"
+                  : "text-sm font-bold text-red-400"
+              }
+            >
+              {formatSignedMoney(stats.change)}{" "}
+              {formatSignedPercentValue(stats.changePercent)}
+            </p>
+          </div>
+
+          {onExpand && (
+            <p className="text-xs text-green-400">Tap chart to expand</p>
+          )}
+        </div>
+
+        <svg
+          viewBox="0 0 260 100"
+          className={size === "large" ? "w-full h-64" : "w-full h-24"}
+        >
+          <polyline
+            points={chartPoints}
+            fill="none"
+            stroke={isPositive ? "#4ade80" : "#f87171"}
+            strokeWidth={size === "large" ? "3" : "4"}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        <div className="flex justify-between items-center text-xs text-slate-500 mt-2">
+          <span>High ${stats.high || "N/A"}</span>
+          <span>Low ${stats.low || "N/A"}</span>
+          <span>End ${stats.end || stock.price}</span>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function ExpandedChartModal({
+  stock,
+  initialRange,
+  onClose,
+}: {
+  stock: Stock;
+  initialRange: ChartRange;
+  onClose: () => void;
+}) {
+  const [selectedRange, setSelectedRange] = useState<ChartRange>(initialRange);
+
+  const stats = getChartStats(stock, selectedRange);
+  const isPositive = stats.change >= 0;
+  const chartPointDetails = stock.chartPoints?.[selectedRange] || [];
+  const firstPoint = chartPointDetails[0];
+  const lastPoint = chartPointDetails[chartPointDetails.length - 1];
+
+  return (
+    <div className="fixed inset-0 bg-black/85 z-[60] flex items-center justify-center p-4">
+      <div className="bg-[#0f1320] border border-slate-700 rounded-3xl w-full max-w-3xl p-5 max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-3xl font-black">{stock.ticker}</h2>
+              <span className="text-xs bg-green-500/20 text-green-300 border border-green-500/30 px-3 py-1 rounded-full">
+                {stock.dataSource === "cached" ? "Cached" : "Live"}
+              </span>
+            </div>
+
+            <p className="text-slate-400 mt-1">{stock.name}</p>
+            <p className="text-xs text-slate-600 mt-1">
+              Expanded price chart
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white text-3xl"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="mt-6 bg-[#090d18] border border-slate-800 rounded-3xl p-5">
+          <div className="flex items-end justify-between gap-4 mb-4">
+            <div>
+              <p className="text-xs text-slate-500">Current / End</p>
+              <p className="text-4xl font-black">
+                ${stats.end || stock.price}
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p
+                className={
+                  isPositive
+                    ? "text-2xl font-bold text-green-400"
+                    : "text-2xl font-bold text-red-400"
+                }
+              >
+                {formatSignedMoney(stats.change)}
+              </p>
+              <p
+                className={
+                  isPositive
+                    ? "text-sm text-green-400"
+                    : "text-sm text-red-400"
+                }
+              >
+                {formatSignedPercentValue(stats.changePercent)}
+              </p>
+            </div>
+          </div>
+
+          <ChartBox
+            stock={stock}
+            selectedRange={selectedRange}
+            setSelectedRange={setSelectedRange}
+            size="large"
+          />
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+            <DataCard label="Start" value={`$${stats.start}`} />
+            <DataCard label="End" value={`$${stats.end}`} />
+            <DataCard label="High" value={`$${stats.high}`} />
+            <DataCard label="Low" value={`$${stats.low}`} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <DataCard
+              label="Range start date"
+              value={formatChartDate(firstPoint?.datetime)}
+            />
+            <DataCard
+              label="Range end date"
+              value={formatChartDate(lastPoint?.datetime)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <DataCard
+              label="Range change"
+              value={formatSignedMoney(stats.change)}
+            />
+            <DataCard
+              label="Range % change"
+              value={formatSignedPercentValue(stats.changePercent)}
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-500 mt-4">
+          Chart data is for research and education, not financial advice.
+        </p>
+      </div>
     </div>
   );
 }
@@ -966,14 +1546,16 @@ function NewsSection({ stock }: { stock: Stock }) {
 function StockDetailModal({
   stock,
   onClose,
+  onExpandChart,
+  onHelp,
 }: {
   stock: Stock;
   onClose: () => void;
+  onExpandChart: (stock: Stock, range: ChartRange) => void;
+  onHelp: (helpId: MetricHelpId) => void;
 }) {
   const [selectedRange, setSelectedRange] = useState<ChartRange>("1M");
 
-  const isPositive = stock.change.startsWith("+");
-  const chartPoints = createChartPoints(getChartValues(stock, selectedRange));
   const insights = getCompanyInsights(stock);
   const match = getMatchScore(stock);
 
@@ -1003,13 +1585,25 @@ function StockDetailModal({
           </button>
         </div>
 
-        <div className={`mt-5 rounded-2xl p-4 border ${match.bg} ${match.border}`}>
+        <div
+          className={`mt-5 rounded-2xl p-4 border ${match.bg} ${match.border}`}
+        >
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-400">Match Score</p>
-              <p className={`text-3xl font-black ${match.color}`}>
-                {match.score}%
-              </p>
+            <div className="flex items-start gap-2">
+              <div>
+                <p className="text-xs text-slate-400">Match Score</p>
+                <p className={`text-3xl font-black ${match.color}`}>
+                  {match.score}%
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onHelp("matchScore")}
+                className="h-5 w-5 rounded-full border border-slate-600 text-slate-500 text-[11px] flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+              >
+                ?
+              </button>
             </div>
 
             <div className="text-right">
@@ -1027,61 +1621,80 @@ function StockDetailModal({
           </div>
         </div>
 
-        <div className="mt-5 bg-[#090d18] rounded-2xl p-4">
-          <div className="flex justify-between mb-3">
-            {ranges.map((range) => (
-              <button
-                key={range}
-                onClick={() => setSelectedRange(range)}
-                className={
-                  selectedRange === range
-                    ? "bg-green-400 text-black text-xs px-3 py-1 rounded-full font-bold"
-                    : "bg-slate-800 text-slate-400 text-xs px-3 py-1 rounded-full"
-                }
-              >
-                {range}
-              </button>
-            ))}
-          </div>
-
-          <svg viewBox="0 0 260 100" className="w-full h-32">
-            <polyline
-              points={chartPoints}
-              fill="none"
-              stroke={isPositive ? "#4ade80" : "#f87171"}
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-
-          <p className="text-xs text-slate-600 mt-2 text-center">
-            Chart uses live, cached, or fallback historical data.
-          </p>
-        </div>
+        <ChartBox
+          stock={stock}
+          selectedRange={selectedRange}
+          setSelectedRange={setSelectedRange}
+          onExpand={() => onExpandChart(stock, selectedRange)}
+        />
 
         <div className="grid grid-cols-2 gap-3 mt-5">
-          <DataCard label="Price" value={`$${stock.price}`} />
+          <DataCard
+            label="Price"
+            value={`$${stock.price}`}
+            helpId="price"
+            onHelp={onHelp}
+          />
           <DataCard
             label="Today"
             value={stock.change}
             note={stock.changeDollar || "$0.00"}
+            helpId="change"
+            onHelp={onHelp}
           />
-          <DataCard label="Previous close" value={stock.previousClose || "N/A"} />
+          <DataCard
+            label="Previous close"
+            value={stock.previousClose || "N/A"}
+            helpId="previousClose"
+            onHelp={onHelp}
+          />
           <DataCard
             label="Analyst target"
             value={stock.analystTargetPrice || "N/A"}
+            helpId="analystTargetPrice"
+            onHelp={onHelp}
           />
-          <DataCard label="Market cap" value={stock.marketCap || "N/A"} />
-          <DataCard label="P/E" value={stock.peRatio || "N/A"} />
-          <DataCard label="EPS" value={stock.eps || "N/A"} />
-          <DataCard label="Beta" value={stock.beta || "N/A"} note="Volatility" />
-          <DataCard label="Profit margin" value={stock.profitMargin || "N/A"} />
-          <DataCard label="Dividend yield" value={stock.dividendYield || "N/A"} />
+          <DataCard
+            label="Market cap"
+            value={stock.marketCap || "N/A"}
+            helpId="marketCap"
+            onHelp={onHelp}
+          />
+          <DataCard
+            label="P/E"
+            value={stock.peRatio || "N/A"}
+            helpId="peRatio"
+            onHelp={onHelp}
+          />
+          <DataCard
+            label="EPS"
+            value={stock.eps || "N/A"}
+            helpId="eps"
+            onHelp={onHelp}
+          />
+          <DataCard
+            label="Beta"
+            value={stock.beta || "N/A"}
+            note="Volatility"
+            helpId="beta"
+            onHelp={onHelp}
+          />
+          <DataCard
+            label="Profit margin"
+            value={stock.profitMargin || "N/A"}
+            helpId="profitMargin"
+            onHelp={onHelp}
+          />
+          <DataCard
+            label="Dividend yield"
+            value={stock.dividendYield || "N/A"}
+            helpId="dividendYield"
+            onHelp={onHelp}
+          />
         </div>
 
         <div className="mt-4">
-          <WeekRangeBar stock={stock} />
+          <WeekRangeBar stock={stock} onHelp={onHelp} />
         </div>
 
         <NewsSection stock={stock} />
@@ -1411,6 +2024,13 @@ export default function Home() {
 
   const [selectedRange, setSelectedRange] = useState<ChartRange>("1M");
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [expandedChartStock, setExpandedChartStock] = useState<Stock | null>(
+    null
+  );
+  const [expandedChartRange, setExpandedChartRange] =
+    useState<ChartRange>("1M");
+  const [activeMetricHelp, setActiveMetricHelp] =
+    useState<MetricHelpId | null>(null);
 
   const [showLists, setShowLists] = useState(false);
   const [activeListTab, setActiveListTab] = useState<ListTab>("watchlist");
@@ -1498,10 +2118,12 @@ export default function Home() {
           chartData:
             chartData?.chartData ||
             createSampleChartData(stockData.price, stockData.change),
+          chartPoints: chartData?.chartPoints,
+          chartStats: chartData?.stats,
         };
 
         const finalStock: Stock =
-          incomingStock.dataSource === "fallback" && cachedStock
+          stockData.dataSource === "fallback" && cachedStock
             ? cachedStock
             : incomingStock;
 
@@ -1521,7 +2143,9 @@ export default function Home() {
             setFetchError("");
           } else {
             const message =
-              error instanceof Error ? error.message : "Could not load stock data.";
+              error instanceof Error
+                ? error.message
+                : "Could not load stock data.";
 
             setFetchError(message);
           }
@@ -1539,6 +2163,11 @@ export default function Home() {
       ignore = true;
     };
   }, [loaded, currentSymbol]);
+
+  function openExpandedChart(stockToOpen: Stock, range: ChartRange) {
+    setExpandedChartStock(stockToOpen);
+    setExpandedChartRange(range);
+  }
 
   function addTickerToDeck(symbolFromButton?: string) {
     const rawSymbol = symbolFromButton || tickerInput;
@@ -1724,6 +2353,8 @@ export default function Home() {
     setShowFilters(false);
     setLastAction(null);
     setSelectedStock(null);
+    setExpandedChartStock(null);
+    setActiveMetricHelp(null);
     setSelectedRange("1M");
     resetDrag();
   }
@@ -1760,12 +2391,14 @@ export default function Home() {
           chartData:
             chartData?.chartData ||
             createSampleChartData(stockData.price, stockData.change),
+          chartPoints: chartData?.chartPoints,
+          chartStats: chartData?.stats,
         };
 
         const cachedStock = readCachedStock(symbolToRetry);
 
         const finalStock =
-          incomingStock.dataSource === "fallback" && cachedStock
+          stockData.dataSource === "fallback" && cachedStock
             ? cachedStock
             : incomingStock;
 
@@ -1965,17 +2598,63 @@ export default function Home() {
           </div>
 
           <div className="mt-6 bg-[#090d18] border border-slate-800 rounded-2xl p-4">
-            <p className="text-sm text-slate-300 font-bold">Browser cache is on</p>
+            <p className="text-sm text-slate-300 font-bold">
+              Shared cache is on
+            </p>
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              Stocks and news that load successfully are saved in this browser
-              for up to 7 days, so the app can keep working better if the API
-              limit is hit.
+              Stock and chart data can be saved in Supabase so everyone can
+              reuse recent data without spending extra API calls.
             </p>
           </div>
         </div>
       </div>
     );
   }
+
+  const modals = (
+    <>
+      <FilterModal />
+
+      {showLists && (
+        <ListsPanel
+          liked={liked}
+          passed={passed}
+          activeTab={activeListTab}
+          setActiveTab={setActiveListTab}
+          onClose={() => setShowLists(false)}
+          onSelectStock={setSelectedStock}
+          onReset={resetApp}
+          onMoveToWatchlist={moveToWatchlist}
+          onMoveToPassed={moveToPassed}
+          onRemoveFromList={removeStockFromList}
+        />
+      )}
+
+      {selectedStock && (
+        <StockDetailModal
+          stock={selectedStock}
+          onClose={() => setSelectedStock(null)}
+          onExpandChart={openExpandedChart}
+          onHelp={setActiveMetricHelp}
+        />
+      )}
+
+      {expandedChartStock && (
+        <ExpandedChartModal
+          stock={expandedChartStock}
+          initialRange={expandedChartRange}
+          onClose={() => setExpandedChartStock(null)}
+        />
+      )}
+
+      {activeMetricHelp && (
+        <MetricHelpModal
+          helpId={activeMetricHelp}
+          onClose={() => setActiveMetricHelp(null)}
+        />
+      )}
+    </>
+  );
 
   if (!loaded) {
     return (
@@ -1998,7 +2677,8 @@ export default function Home() {
             <h2 className="text-4xl font-bold">No more stocks</h2>
 
             <p className="text-slate-500 mt-4">
-              You have swiped through every stock in the {selectedFilterLabel} deck.
+              You have swiped through every stock in the {selectedFilterLabel}{" "}
+              deck.
             </p>
 
             {lastAction && (
@@ -2035,29 +2715,7 @@ export default function Home() {
           </div>
         </section>
 
-        <FilterModal />
-
-        {showLists && (
-          <ListsPanel
-            liked={liked}
-            passed={passed}
-            activeTab={activeListTab}
-            setActiveTab={setActiveListTab}
-            onClose={() => setShowLists(false)}
-            onSelectStock={setSelectedStock}
-            onReset={resetApp}
-            onMoveToWatchlist={moveToWatchlist}
-            onMoveToPassed={moveToPassed}
-            onRemoveFromList={removeStockFromList}
-          />
-        )}
-
-        {selectedStock && (
-          <StockDetailModal
-            stock={selectedStock}
-            onClose={() => setSelectedStock(null)}
-          />
-        )}
+        {modals}
       </main>
     );
   }
@@ -2077,22 +2735,7 @@ export default function Home() {
           </div>
         </section>
 
-        <FilterModal />
-
-        {showLists && (
-          <ListsPanel
-            liked={liked}
-            passed={passed}
-            activeTab={activeListTab}
-            setActiveTab={setActiveListTab}
-            onClose={() => setShowLists(false)}
-            onSelectStock={setSelectedStock}
-            onReset={resetApp}
-            onMoveToWatchlist={moveToWatchlist}
-            onMoveToPassed={moveToPassed}
-            onRemoveFromList={removeStockFromList}
-          />
-        )}
+        {modals}
       </main>
     );
   }
@@ -2126,22 +2769,7 @@ export default function Home() {
           </div>
         </section>
 
-        <FilterModal />
-
-        {showLists && (
-          <ListsPanel
-            liked={liked}
-            passed={passed}
-            activeTab={activeListTab}
-            setActiveTab={setActiveListTab}
-            onClose={() => setShowLists(false)}
-            onSelectStock={setSelectedStock}
-            onReset={resetApp}
-            onMoveToWatchlist={moveToWatchlist}
-            onMoveToPassed={moveToPassed}
-            onRemoveFromList={removeStockFromList}
-          />
-        )}
+        {modals}
       </main>
     );
   }
@@ -2151,7 +2779,6 @@ export default function Home() {
   }
 
   const isPositive = stock.change.startsWith("+");
-  const chartPoints = createChartPoints(getChartValues(stock, selectedRange));
   const likeOpacity = Math.min(Math.max(dragX / 120, 0), 1);
   const passOpacity = Math.min(Math.max(-dragX / 120, 0), 1);
   const match = getMatchScore(stock);
@@ -2209,20 +2836,31 @@ export default function Home() {
             </p>
 
             <p className="text-xs bg-green-500/20 text-green-300 px-3 py-1 rounded-full">
-              {stock.dataSource === "fallback"
-                ? "Fallback"
-                : stock.dataSource === "cached"
-                ? "Cached"
-                : "Live"}
+              {stock.dataSource === "cached" ? "Cached" : "Live"}
             </p>
           </div>
 
-          <div className={`mb-4 rounded-2xl border ${match.bg} ${match.border} p-3`}>
-            <p className="text-xs text-slate-400">Match Score</p>
+          <div
+            className={`mb-4 rounded-2xl border ${match.bg} ${match.border} p-3`}
+          >
             <div className="flex justify-between items-center">
-              <p className={`text-3xl font-black ${match.color}`}>
-                {match.score}%
-              </p>
+              <div className="flex items-start gap-2">
+                <div>
+                  <p className="text-xs text-slate-400">Match Score</p>
+                  <p className={`text-3xl font-black ${match.color}`}>
+                    {match.score}%
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveMetricHelp("matchScore")}
+                  className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+                >
+                  ?
+                </button>
+              </div>
+
               <p className={`text-sm font-bold ${match.color}`}>
                 {match.label}
               </p>
@@ -2255,49 +2893,67 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-5 bg-[#090d18] rounded-2xl p-3">
-            <div className="flex justify-between mb-2">
-              {ranges.map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setSelectedRange(range)}
-                  className={
-                    selectedRange === range
-                      ? "bg-green-400 text-black text-xs px-3 py-1 rounded-full font-bold"
-                      : "bg-slate-800 text-slate-400 text-xs px-3 py-1 rounded-full"
-                  }
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
-
-            <svg viewBox="0 0 260 100" className="w-full h-24">
-              <polyline
-                points={chartPoints}
-                fill="none"
-                stroke={isPositive ? "#4ade80" : "#f87171"}
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
+          <ChartBox
+            stock={stock}
+            selectedRange={selectedRange}
+            setSelectedRange={setSelectedRange}
+            onExpand={() => openExpandedChart(stock, selectedRange)}
+          />
 
           <div className="grid grid-cols-3 gap-2 mt-4 text-left">
-            <DataCard compact label="Target" value={stock.analystTargetPrice || "N/A"} />
-            <DataCard compact label="EPS" value={stock.eps || "N/A"} />
-            <DataCard compact label="Beta" value={stock.beta || "N/A"} />
+            <DataCard
+              compact
+              label="Target"
+              value={stock.analystTargetPrice || "N/A"}
+              helpId="analystTargetPrice"
+              onHelp={setActiveMetricHelp}
+            />
+            <DataCard
+              compact
+              label="EPS"
+              value={stock.eps || "N/A"}
+              helpId="eps"
+              onHelp={setActiveMetricHelp}
+            />
+            <DataCard
+              compact
+              label="Beta"
+              value={stock.beta || "N/A"}
+              helpId="beta"
+              onHelp={setActiveMetricHelp}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-2 text-left">
-            <DataCard compact label="Market Cap" value={stock.marketCap || "N/A"} />
-            <DataCard compact label="P/E" value={stock.peRatio || "N/A"} />
-            <DataCard compact label="Risk" value={stock.riskLevel || "Research"} />
+            <DataCard
+              compact
+              label="Market Cap"
+              value={stock.marketCap || "N/A"}
+              helpId="marketCap"
+              onHelp={setActiveMetricHelp}
+            />
+            <DataCard
+              compact
+              label="P/E"
+              value={stock.peRatio || "N/A"}
+              helpId="peRatio"
+              onHelp={setActiveMetricHelp}
+            />
+            <DataCard
+              compact
+              label="Risk"
+              value={stock.riskLevel || "Research"}
+              helpId="riskLevel"
+              onHelp={setActiveMetricHelp}
+            />
           </div>
 
           <div className="mt-4">
-            <WeekRangeBar stock={stock} compact />
+            <WeekRangeBar
+              stock={stock}
+              compact
+              onHelp={setActiveMetricHelp}
+            />
           </div>
 
           <button
@@ -2325,29 +2981,7 @@ export default function Home() {
         </div>
       </section>
 
-      <FilterModal />
-
-      {showLists && (
-        <ListsPanel
-          liked={liked}
-          passed={passed}
-          activeTab={activeListTab}
-          setActiveTab={setActiveListTab}
-          onClose={() => setShowLists(false)}
-          onSelectStock={setSelectedStock}
-          onReset={resetApp}
-          onMoveToWatchlist={moveToWatchlist}
-          onMoveToPassed={moveToPassed}
-          onRemoveFromList={removeStockFromList}
-        />
-      )}
-
-      {selectedStock && (
-        <StockDetailModal
-          stock={selectedStock}
-          onClose={() => setSelectedStock(null)}
-        />
-      )}
+      {modals}
     </main>
   );
 }
