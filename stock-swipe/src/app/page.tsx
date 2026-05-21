@@ -1565,7 +1565,7 @@ function RecommendationPanel({
     <div className="mt-4 bg-[#0f1320] border border-slate-800 rounded-3xl p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-black">Recommended niche ideas</h3>
+          <h3 className="font-black">Recommended Stocks</h3>
           <p className="text-xs text-slate-500 mt-1">Based on your likes and passes.</p>
         </div>
         <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-1 rounded-full">
