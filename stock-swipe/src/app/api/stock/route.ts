@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "../../../lib/supabaseServer";
+import { canUseApiCall, recordApiCall } from "../../lib/apiBudget";
+
+const TWELVE_DATA_DAILY_LIMIT_PER_ENDPOINT = 12;
+const FMP_DAILY_LIMIT_PER_ENDPOINT = 12;
 
 type StockData = {
   ticker: string;
@@ -167,14 +171,6 @@ function formatLargeNumber(value: unknown) {
   return `$${numberValue.toLocaleString()}`;
 }
 
-function formatPercent(value: unknown) {
-  const numberValue = toNumber(value);
-
-  if (numberValue === null) return "N/A";
-
-  return `${numberValue.toFixed(2)}%`;
-}
-
 function formatRatio(value: unknown) {
   const numberValue = toNumber(value);
 
@@ -191,7 +187,11 @@ function formatInteger(value: unknown) {
   return Math.round(numberValue).toLocaleString();
 }
 
-function formatDividendYield(profileValue: unknown, lastDividend: unknown, price: number) {
+function formatDividendYield(
+  profileValue: unknown,
+  lastDividend: unknown,
+  price: number
+) {
   const profileNumber = toNumber(profileValue);
 
   if (profileNumber !== null && profileNumber > 0) {
@@ -257,6 +257,22 @@ function getRangeHigh(range?: string) {
   return parts[1] ? formatCurrency(parts[1]) : "N/A";
 }
 
+async function canUseTwelveEndpoint(endpoint: string) {
+  return canUseApiCall({
+    provider: "twelve_data",
+    endpoint,
+    dailyLimit: TWELVE_DATA_DAILY_LIMIT_PER_ENDPOINT,
+  });
+}
+
+async function canUseFmpEndpoint(endpoint: string) {
+  return canUseApiCall({
+    provider: "fmp",
+    endpoint,
+    dailyLimit: FMP_DAILY_LIMIT_PER_ENDPOINT,
+  });
+}
+
 async function getCachedStock(symbol: string) {
   const { data, error } = await supabaseServer
     .from("stock_cache")
@@ -283,7 +299,7 @@ async function getCachedStock(symbol: string) {
 async function getOlderCachedStock(symbol: string) {
   const { data, error } = await supabaseServer
     .from("stock_cache")
-    .select("stock_data")
+    .select("stock_data, stock_updated_at")
     .eq("symbol", symbol)
     .maybeSingle();
 
@@ -294,11 +310,14 @@ async function getOlderCachedStock(symbol: string) {
 
   if (!data?.stock_data) return null;
 
+  const cacheDate = data.stock_updated_at
+    ? data.stock_updated_at.slice(0, 10)
+    : "an earlier date";
+
   return {
     ...(data.stock_data as StockData),
     dataSource: "cached" as const,
-    warning:
-      "Live data is unavailable, so older shared database cache is being used.",
+    warning: `Using older shared database cache from ${cacheDate} because live API data is unavailable or today's API budget is used up.`,
   };
 }
 
@@ -324,12 +343,30 @@ async function fetchTwelveData(symbol: string) {
     throw new Error("Missing Twelve Data API key.");
   }
 
+  const canUseQuote = await canUseTwelveEndpoint("quote");
+  const canUseProfile = await canUseTwelveEndpoint("profile");
+
+  if (!canUseQuote || !canUseProfile) {
+    throw new Error("Twelve Data daily API budget has been reached.");
+  }
+
   const quoteUrl = `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${apiKey}`;
   const profileUrl = `https://api.twelvedata.com/profile?symbol=${symbol}&apikey=${apiKey}`;
 
   const [quoteResponse, profileResponse] = await Promise.all([
     fetch(quoteUrl, { cache: "no-store" }),
     fetch(profileUrl, { cache: "no-store" }),
+  ]);
+
+  await Promise.all([
+    recordApiCall({
+      provider: "twelve_data",
+      endpoint: "quote",
+    }),
+    recordApiCall({
+      provider: "twelve_data",
+      endpoint: "profile",
+    }),
   ]);
 
   const quoteData = (await quoteResponse.json()) as TwelveQuote;
@@ -359,12 +396,35 @@ async function fetchFmpData(symbol: string) {
     };
   }
 
+  const canUseProfile = await canUseFmpEndpoint("profile");
+  const canUseQuote = await canUseFmpEndpoint("quote");
+
+  if (!canUseProfile || !canUseQuote) {
+    console.warn("FMP daily API budget reached. Skipping FMP enrichment.");
+
+    return {
+      profile: null,
+      quote: null,
+    };
+  }
+
   const profileUrl = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;
   const quoteUrl = `https://financialmodelingprep.com/stable/quote?symbol=${symbol}&apikey=${apiKey}`;
 
   const [profileResponse, quoteResponse] = await Promise.all([
     fetch(profileUrl, { cache: "no-store" }),
     fetch(quoteUrl, { cache: "no-store" }),
+  ]);
+
+  await Promise.all([
+    recordApiCall({
+      provider: "fmp",
+      endpoint: "profile",
+    }),
+    recordApiCall({
+      provider: "fmp",
+      endpoint: "quote",
+    }),
   ]);
 
   const profileJson = await profileResponse.json();
@@ -404,7 +464,9 @@ async function fetchMergedStock(symbol: string): Promise<StockData> {
     0;
 
   const change =
-    toNumber(twelveQuote.percent_change) ?? toNumber(fmpQuote?.changesPercentage) ?? 0;
+    toNumber(twelveQuote.percent_change) ??
+    toNumber(fmpQuote?.changesPercentage) ??
+    0;
 
   const changeDollar =
     toNumber(twelveQuote.change) ?? toNumber(fmpQuote?.change) ?? 0;
@@ -413,7 +475,8 @@ async function fetchMergedStock(symbol: string): Promise<StockData> {
   const eps = fmpQuote?.eps ?? twelveProfile?.eps;
   const beta = fmpProfile?.beta ?? twelveProfile?.beta;
 
-  const marketCap = fmpQuote?.marketCap ?? fmpProfile?.mktCap ?? twelveProfile?.market_cap;
+  const marketCap =
+    fmpQuote?.marketCap ?? fmpProfile?.mktCap ?? twelveProfile?.market_cap;
 
   const name =
     fmpProfile?.companyName ||
@@ -424,26 +487,25 @@ async function fetchMergedStock(symbol: string): Promise<StockData> {
     `${symbol} Corporation`;
 
   const sector = fmpProfile?.sector || twelveProfile?.sector || "Unknown";
-  const industry = fmpProfile?.industry || twelveProfile?.industry || "Unknown";
+  const industry =
+    fmpProfile?.industry || twelveProfile?.industry || "Unknown";
 
   const description =
     fmpProfile?.description ||
     twelveProfile?.description ||
     `${name} is a publicly traded company in the ${sector} sector.`;
 
-  const fiftyTwoWeekHigh =
-    twelveQuote.fifty_two_week?.high
-      ? formatCurrency(twelveQuote.fifty_two_week.high)
-      : fmpQuote?.yearHigh
-      ? formatCurrency(fmpQuote.yearHigh)
-      : getRangeHigh(fmpProfile?.range);
+  const fiftyTwoWeekHigh = twelveQuote.fifty_two_week?.high
+    ? formatCurrency(twelveQuote.fifty_two_week.high)
+    : fmpQuote?.yearHigh
+    ? formatCurrency(fmpQuote.yearHigh)
+    : getRangeHigh(fmpProfile?.range);
 
-  const fiftyTwoWeekLow =
-    twelveQuote.fifty_two_week?.low
-      ? formatCurrency(twelveQuote.fifty_two_week.low)
-      : fmpQuote?.yearLow
-      ? formatCurrency(fmpQuote.yearLow)
-      : getRangeLow(fmpProfile?.range);
+  const fiftyTwoWeekLow = twelveQuote.fifty_two_week?.low
+    ? formatCurrency(twelveQuote.fifty_two_week.low)
+    : fmpQuote?.yearLow
+    ? formatCurrency(fmpQuote.yearLow)
+    : getRangeLow(fmpProfile?.range);
 
   return {
     ticker: symbol,
@@ -518,7 +580,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        error: "Real stock data is unavailable for this symbol right now.",
+        error:
+          "Real stock data is unavailable for this symbol right now, and no cached data exists yet.",
         symbol,
         dataSource: "unavailable",
       },
