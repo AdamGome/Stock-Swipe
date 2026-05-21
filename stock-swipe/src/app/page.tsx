@@ -1233,7 +1233,7 @@ function WeekRangeBar({
             <button
               type="button"
               onClick={() => onHelp("fiftyTwoWeekRange")}
-              className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+              className="h-5 w-5 rounded-full border border-slate-500 bg-slate-800 text-slate-300 text-[10px] font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
             >
               ?
             </button>
