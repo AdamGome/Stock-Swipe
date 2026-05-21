@@ -1046,6 +1046,9 @@ function getCompanyInsights(stock: Stock) {
   };
 }
 
+const helpButtonClass =
+  "h-5 w-5 rounded-full border border-slate-500 bg-slate-800 text-slate-300 text-[10px] font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition";
+
 function MetricHelpModal({
   helpId,
   onClose,
@@ -1158,7 +1161,7 @@ function DataCard({
               event.stopPropagation();
               onHelp(helpId);
             }}
-            className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+            className={helpButtonClass}
             aria-label={`What is ${label}?`}
           >
             ?
@@ -1233,7 +1236,7 @@ function WeekRangeBar({
             <button
               type="button"
               onClick={() => onHelp("fiftyTwoWeekRange")}
-              className="h-5 w-5 rounded-full border border-slate-500 bg-slate-800 text-slate-300 text-[10px] font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+              className={helpButtonClass}
             >
               ?
             </button>
@@ -1650,7 +1653,7 @@ function StockDetailModal({
               <button
                 type="button"
                 onClick={() => onHelp("matchScore")}
-                className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+                className={helpButtonClass}
               >
                 ?
               </button>
@@ -1832,6 +1835,168 @@ function StockDetailModal({
   );
 }
 
+function DashboardStockRow({
+  stock,
+  onSelectStock,
+}: {
+  stock: Stock;
+  onSelectStock: (stock: Stock) => void;
+}) {
+  const isPositive = stock.change.startsWith("+");
+  const match = getMatchScore(stock);
+
+  return (
+    <button
+      onClick={() => onSelectStock(stock)}
+      className="w-full bg-[#090d18] border border-slate-800 rounded-2xl p-3 text-left hover:border-green-400 transition"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-black text-slate-100">{stock.ticker}</p>
+            <span className={`text-xs ${match.color}`}>{match.score}%</span>
+          </div>
+
+          <p className="text-xs text-slate-500 truncate">{stock.name}</p>
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold">${stock.price}</p>
+          <p
+            className={
+              isPositive ? "text-xs text-green-400" : "text-xs text-red-400"
+            }
+          >
+            {stock.change}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function DashboardSection({
+  title,
+  subtitle,
+  stocks,
+  emptyText,
+  onSelectStock,
+}: {
+  title: string;
+  subtitle: string;
+  stocks: Stock[];
+  emptyText: string;
+  onSelectStock: (stock: Stock) => void;
+}) {
+  return (
+    <div className="bg-[#0f1320] border border-slate-800 rounded-3xl p-4">
+      <div className="mb-4">
+        <h3 className="font-black text-lg">{title}</h3>
+        <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+      </div>
+
+      {stocks.length === 0 ? (
+        <p className="text-sm text-slate-600">{emptyText}</p>
+      ) : (
+        <div className="space-y-3">
+          {stocks.slice(0, 5).map((stock) => (
+            <DashboardStockRow
+              key={`${title}-${stock.ticker}`}
+              stock={stock}
+              onSelectStock={onSelectStock}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getDashboardSections(stocks: Stock[]) {
+  const usefulPE = stocks.filter((stock) => {
+    const pe = parseNumberValue(stock.peRatio);
+    return pe !== null && pe > 0;
+  });
+
+  const usefulBeta = stocks.filter((stock) => {
+    const beta = parseNumberValue(stock.beta);
+    return beta !== null && beta > 0;
+  });
+
+  const dividendStocks = stocks.filter((stock) => {
+    const dividendYield = parseNumberValue(stock.dividendYield);
+    return dividendYield !== null && dividendYield > 0;
+  });
+
+  const nearHigh = stocks.filter((stock) => {
+    const position = getWeekRangePosition(stock);
+    return position !== null && position >= 80;
+  });
+
+  const nearLow = stocks.filter((stock) => {
+    const position = getWeekRangePosition(stock);
+    return position !== null && position <= 30;
+  });
+
+  return {
+    topMatches: [...stocks]
+      .sort((a, b) => getMatchScore(b).score - getMatchScore(a).score)
+      .slice(0, 5),
+
+    biggestGainers: [...stocks]
+      .sort(
+        (a, b) => parseChangePercent(b.change) - parseChangePercent(a.change)
+      )
+      .slice(0, 5),
+
+    biggestLosers: [...stocks]
+      .sort(
+        (a, b) => parseChangePercent(a.change) - parseChangePercent(b.change)
+      )
+      .slice(0, 5),
+
+    lowestPE: [...usefulPE]
+      .sort((a, b) => {
+        const aPE = parseNumberValue(a.peRatio) ?? Number.MAX_SAFE_INTEGER;
+        const bPE = parseNumberValue(b.peRatio) ?? Number.MAX_SAFE_INTEGER;
+        return aPE - bPE;
+      })
+      .slice(0, 5),
+
+    highestBeta: [...usefulBeta]
+      .sort((a, b) => {
+        const aBeta = parseNumberValue(a.beta) ?? 0;
+        const bBeta = parseNumberValue(b.beta) ?? 0;
+        return bBeta - aBeta;
+      })
+      .slice(0, 5),
+
+    dividendStocks: [...dividendStocks]
+      .sort((a, b) => {
+        const aYield = parseNumberValue(a.dividendYield) ?? 0;
+        const bYield = parseNumberValue(b.dividendYield) ?? 0;
+        return bYield - aYield;
+      })
+      .slice(0, 5),
+
+    nearHigh: [...nearHigh]
+      .sort((a, b) => {
+        const aPosition = getWeekRangePosition(a) ?? 0;
+        const bPosition = getWeekRangePosition(b) ?? 0;
+        return bPosition - aPosition;
+      })
+      .slice(0, 5),
+
+    nearLow: [...nearLow]
+      .sort((a, b) => {
+        const aPosition = getWeekRangePosition(a) ?? 100;
+        const bPosition = getWeekRangePosition(b) ?? 100;
+        return aPosition - bPosition;
+      })
+      .slice(0, 5),
+  };
+}
+
 function ListsPanel({
   liked,
   passed,
@@ -1856,22 +2021,45 @@ function ListsPanel({
   onRemoveFromList: (stock: Stock, list: ListTab) => void;
 }) {
   const [sortBy, setSortBy] = useState<ListSort>("saved");
+  const [viewMode, setViewMode] = useState<"dashboard" | "list">("dashboard");
 
   const rawList = activeTab === "watchlist" ? liked : passed;
   const list = sortStockList(rawList, sortBy);
+  const dashboard = getDashboardSections(liked);
 
   const selectedSortLabel =
     listSortOptions.find((option) => option.id === sortBy)?.label ||
     "Saved order";
 
+  const averageMatch =
+    liked.length === 0
+      ? 0
+      : Math.round(
+          liked.reduce((total, stock) => total + getMatchScore(stock).score, 0) /
+            liked.length
+        );
+
+  const positiveCount = liked.filter(
+    (stock) => parseChangePercent(stock.change) > 0
+  ).length;
+
+  const highRiskCount = liked.filter((stock) =>
+    (stock.riskLevel || "").toLowerCase().includes("high")
+  ).length;
+
+  const dividendCount = liked.filter((stock) => {
+    const dividendYield = parseNumberValue(stock.dividendYield);
+    return dividendYield !== null && dividendYield > 0;
+  }).length;
+
   return (
     <div className="fixed inset-0 bg-[#080c16] text-white z-40 p-6 overflow-y-auto">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center gap-4">
           <div>
-            <h2 className="text-xl font-bold">Lists</h2>
+            <h2 className="text-2xl font-black">Lists</h2>
             <p className="text-xs text-slate-500 mt-1">
-              Sort saved stocks without using more API calls.
+              Review saved stocks, spot patterns, and compare research ideas.
             </p>
           </div>
 
@@ -1883,9 +2071,12 @@ function ListsPanel({
           </button>
         </div>
 
-        <div className="flex gap-3 mt-8">
+        <div className="flex flex-wrap gap-3 mt-8">
           <button
-            onClick={() => setActiveTab("watchlist")}
+            onClick={() => {
+              setActiveTab("watchlist");
+              setViewMode("dashboard");
+            }}
             className={
               activeTab === "watchlist"
                 ? "bg-green-400 text-black px-4 py-2 rounded-full font-bold"
@@ -1896,7 +2087,10 @@ function ListsPanel({
           </button>
 
           <button
-            onClick={() => setActiveTab("passed")}
+            onClick={() => {
+              setActiveTab("passed");
+              setViewMode("list");
+            }}
             className={
               activeTab === "passed"
                 ? "bg-red-400 text-black px-4 py-2 rounded-full font-bold"
@@ -1905,140 +2099,340 @@ function ListsPanel({
           >
             Passed {passed.length}
           </button>
-        </div>
 
-        <div className="mt-6 bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs text-slate-500">Sort by</p>
-              <p className="text-sm text-slate-300 mt-1">
-                {selectedSortLabel}
-              </p>
-            </div>
+          {activeTab === "watchlist" && (
+            <div className="flex gap-2 ml-0 sm:ml-auto">
+              <button
+                onClick={() => setViewMode("dashboard")}
+                className={
+                  viewMode === "dashboard"
+                    ? "bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-sm"
+                    : "bg-slate-900 text-slate-300 px-4 py-2 rounded-full border border-slate-800 text-sm"
+                }
+              >
+                Dashboard
+              </button>
 
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as ListSort)}
-              className="bg-slate-900 border border-slate-700 text-white rounded-full px-4 py-2 text-sm outline-none focus:border-green-400"
-            >
-              {listSortOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-8">
-          {list.length === 0 ? (
-            <div className="border border-slate-800 bg-[#0f1320] rounded-2xl p-6 text-slate-400">
-              {activeTab === "watchlist"
-                ? "No liked stocks yet. Swipe right on stocks to add them here."
-                : "No passed stocks yet. Swipe left on stocks to add them here."}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {list.map((stock, index) => {
-                const isPositive = stock.change.startsWith("+");
-                const match = getMatchScore(stock);
-
-                return (
-                  <div
-                    key={`${stock.ticker}-${index}`}
-                    className="bg-[#0f1320] border border-slate-800 rounded-2xl p-4"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-black text-lg">{stock.ticker}</h3>
-
-                          <span className="text-[10px] bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full">
-                            {stock.dataSource || "saved"}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-slate-500">{stock.name}</p>
-
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className={`text-xs ${match.color}`}>
-                            Match: {match.score}%
-                          </span>
-
-                          <span className="text-xs text-slate-600">
-                            P/E: {stock.peRatio || "N/A"}
-                          </span>
-
-                          <span className="text-xs text-slate-600">
-                            Beta: {stock.beta || "N/A"}
-                          </span>
-
-                          <span className="text-xs text-slate-600">
-                            Risk: {stock.riskLevel || "Research"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="font-bold">${stock.price}</p>
-                        <p
-                          className={
-                            isPositive
-                              ? "text-sm text-green-400"
-                              : "text-sm text-red-400"
-                          }
-                        >
-                          {stock.change}
-                        </p>
-                        <p
-                          className={
-                            isPositive
-                              ? "text-xs text-green-400"
-                              : "text-xs text-red-400"
-                          }
-                        >
-                          {stock.changeDollar || "$0.00"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mt-4">
-                      <button
-                        onClick={() => onSelectStock(stock)}
-                        className="bg-slate-900 border border-slate-700 text-slate-200 px-4 py-2 rounded-full text-sm hover:border-green-400"
-                      >
-                        Details
-                      </button>
-
-                      {activeTab === "watchlist" ? (
-                        <button
-                          onClick={() => onMoveToPassed(stock)}
-                          className="bg-red-500/20 border border-red-500/40 text-red-300 px-4 py-2 rounded-full text-sm hover:bg-red-500/30"
-                        >
-                          Move to Passed
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onMoveToWatchlist(stock)}
-                          className="bg-green-500/20 border border-green-500/40 text-green-300 px-4 py-2 rounded-full text-sm hover:bg-green-500/30"
-                        >
-                          Move to Watchlist
-                        </button>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => onRemoveFromList(stock, activeTab)}
-                      className="w-full mt-2 border border-slate-800 text-slate-500 px-4 py-2 rounded-full text-sm hover:text-white hover:border-slate-600"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                );
-              })}
+              <button
+                onClick={() => setViewMode("list")}
+                className={
+                  viewMode === "list"
+                    ? "bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-sm"
+                    : "bg-slate-900 text-slate-300 px-4 py-2 rounded-full border border-slate-800 text-sm"
+                }
+              >
+                List
+              </button>
             </div>
           )}
         </div>
+
+        {activeTab === "watchlist" && viewMode === "dashboard" ? (
+          <div className="mt-8">
+            {liked.length === 0 ? (
+              <div className="border border-slate-800 bg-[#0f1320] rounded-3xl p-6 text-slate-400">
+                No watchlist stocks yet. Swipe right on stocks to build your
+                dashboard.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
+                    <p className="text-xs text-slate-500">Watchlist size</p>
+                    <p className="text-3xl font-black mt-1">{liked.length}</p>
+                  </div>
+
+                  <div className="bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
+                    <p className="text-xs text-slate-500">Average match</p>
+                    <p className="text-3xl font-black mt-1 text-green-400">
+                      {averageMatch}%
+                    </p>
+                  </div>
+
+                  <div className="bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
+                    <p className="text-xs text-slate-500">Up today</p>
+                    <p className="text-3xl font-black mt-1 text-blue-400">
+                      {positiveCount}
+                    </p>
+                  </div>
+
+                  <div className="bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
+                    <p className="text-xs text-slate-500">High risk</p>
+                    <p className="text-3xl font-black mt-1 text-red-400">
+                      {highRiskCount}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 bg-[#0f1320] border border-slate-800 rounded-3xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-black text-lg">Beginner snapshot</h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Quick read on what your watchlist currently looks like.
+                      </p>
+                    </div>
+
+                    <span className="text-xs bg-slate-900 border border-slate-800 px-3 py-1 rounded-full text-slate-400">
+                      Educational only
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                    <div className="bg-[#090d18] rounded-2xl p-4">
+                      <p className="text-xs text-slate-500">Momentum</p>
+                      <p className="text-sm text-slate-300 mt-2">
+                        {positiveCount > liked.length / 2
+                          ? "More than half of your watchlist is up today."
+                          : "Less than half of your watchlist is up today."}
+                      </p>
+                    </div>
+
+                    <div className="bg-[#090d18] rounded-2xl p-4">
+                      <p className="text-xs text-slate-500">Risk</p>
+                      <p className="text-sm text-slate-300 mt-2">
+                        {highRiskCount > 0
+                          ? `${highRiskCount} saved stock${
+                              highRiskCount === 1 ? " is" : "s are"
+                            } marked high risk.`
+                          : "No saved stocks are currently marked high risk."}
+                      </p>
+                    </div>
+
+                    <div className="bg-[#090d18] rounded-2xl p-4">
+                      <p className="text-xs text-slate-500">Dividends</p>
+                      <p className="text-sm text-slate-300 mt-2">
+                        {dividendCount > 0
+                          ? `${dividendCount} saved stock${
+                              dividendCount === 1 ? " has" : "s have"
+                            } a dividend yield.`
+                          : "No dividend-focused stocks found yet."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                  <DashboardSection
+                    title="Top Matches"
+                    subtitle="Highest app match scores in your watchlist."
+                    stocks={dashboard.topMatches}
+                    emptyText="No matches yet."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Biggest Gainers"
+                    subtitle="Saved stocks with the strongest daily move."
+                    stocks={dashboard.biggestGainers}
+                    emptyText="No gainers yet."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Biggest Losers"
+                    subtitle="Saved stocks down the most today."
+                    stocks={dashboard.biggestLosers}
+                    emptyText="No losers yet."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Lowest P/E"
+                    subtitle="Potentially cheaper valuation, but compare by industry."
+                    stocks={dashboard.lowestPE}
+                    emptyText="No useful P/E data yet."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Highest Beta"
+                    subtitle="More volatile stocks that may move harder."
+                    stocks={dashboard.highestBeta}
+                    emptyText="No useful beta data yet."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Dividend Stocks"
+                    subtitle="Saved stocks with dividend yield data."
+                    stocks={dashboard.dividendStocks}
+                    emptyText="No dividend stocks found."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Near 52-Week High"
+                    subtitle="Stocks trading close to their yearly high."
+                    stocks={dashboard.nearHigh}
+                    emptyText="No stocks near yearly highs."
+                    onSelectStock={onSelectStock}
+                  />
+
+                  <DashboardSection
+                    title="Near 52-Week Low"
+                    subtitle="Stocks trading closer to their yearly low."
+                    stocks={dashboard.nearLow}
+                    emptyText="No stocks near yearly lows."
+                    onSelectStock={onSelectStock}
+                  />
+                </div>
+
+                <button
+                  onClick={() => setViewMode("list")}
+                  className="mt-6 border border-slate-700 px-5 py-3 rounded-full text-slate-300 hover:text-white"
+                >
+                  Open full watchlist
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 bg-[#0f1320] border border-slate-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs text-slate-500">Sort by</p>
+                  <p className="text-sm text-slate-300 mt-1">
+                    {selectedSortLabel}
+                  </p>
+                </div>
+
+                <select
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(event.target.value as ListSort)
+                  }
+                  className="bg-slate-900 border border-slate-700 text-white rounded-full px-4 py-2 text-sm outline-none focus:border-green-400"
+                >
+                  {listSortOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              {list.length === 0 ? (
+                <div className="border border-slate-800 bg-[#0f1320] rounded-2xl p-6 text-slate-400">
+                  {activeTab === "watchlist"
+                    ? "No liked stocks yet. Swipe right on stocks to add them here."
+                    : "No passed stocks yet. Swipe left on stocks to add them here."}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {list.map((stock, index) => {
+                    const isPositive = stock.change.startsWith("+");
+                    const match = getMatchScore(stock);
+
+                    return (
+                      <div
+                        key={`${stock.ticker}-${index}`}
+                        className="bg-[#0f1320] border border-slate-800 rounded-2xl p-4"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-black text-lg">
+                                {stock.ticker}
+                              </h3>
+
+                              <span className="text-[10px] bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full">
+                                {stock.dataSource || "saved"}
+                              </span>
+                            </div>
+
+                            <p className="text-sm text-slate-500">
+                              {stock.name}
+                            </p>
+
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <span className={`text-xs ${match.color}`}>
+                                Match: {match.score}%
+                              </span>
+
+                              {hasUsefulValue(stock.peRatio) && (
+                                <span className="text-xs text-slate-600">
+                                  P/E: {stock.peRatio}
+                                </span>
+                              )}
+
+                              {hasUsefulValue(stock.beta) && (
+                                <span className="text-xs text-slate-600">
+                                  Beta: {stock.beta}
+                                </span>
+                              )}
+
+                              <span className="text-xs text-slate-600">
+                                Risk: {stock.riskLevel || "Research"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <p className="font-bold">${stock.price}</p>
+                            <p
+                              className={
+                                isPositive
+                                  ? "text-sm text-green-400"
+                                  : "text-sm text-red-400"
+                              }
+                            >
+                              {stock.change}
+                            </p>
+                            <p
+                              className={
+                                isPositive
+                                  ? "text-xs text-green-400"
+                                  : "text-xs text-red-400"
+                              }
+                            >
+                              {stock.changeDollar || "$0.00"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 mt-4">
+                          <button
+                            onClick={() => onSelectStock(stock)}
+                            className="bg-slate-900 border border-slate-700 text-slate-200 px-4 py-2 rounded-full text-sm hover:border-green-400"
+                          >
+                            Details
+                          </button>
+
+                          {activeTab === "watchlist" ? (
+                            <button
+                              onClick={() => onMoveToPassed(stock)}
+                              className="bg-red-500/20 border border-red-500/40 text-red-300 px-4 py-2 rounded-full text-sm hover:bg-red-500/30"
+                            >
+                              Move to Passed
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onMoveToWatchlist(stock)}
+                              className="bg-green-500/20 border border-green-500/40 text-green-300 px-4 py-2 rounded-full text-sm hover:bg-green-500/30"
+                            >
+                              Move to Watchlist
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => onRemoveFromList(stock, activeTab)}
+                          className="w-full mt-2 border border-slate-800 text-slate-500 px-4 py-2 rounded-full text-sm hover:text-white hover:border-slate-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {(liked.length > 0 || passed.length > 0) && (
           <button
@@ -2515,45 +2909,48 @@ export default function Home() {
   }
 
   function Header() {
-    return (
-      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-5 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="bg-green-400 text-black w-8 h-8 rounded-full flex items-center justify-center font-black">
-            ^
-          </div>
-
-          <div>
-            <h1 className="font-black text-lg leading-none">StockSwipe</h1>
-            <p className="text-[11px] text-slate-500 mt-1">
-              {selectedFilterLabel} deck
-            </p>
-          </div>
+  return (
+    <header className="h-16 border-b border-slate-800 flex items-center justify-between px-5 shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="bg-green-400 text-black w-8 h-8 rounded-full flex items-center justify-center font-black">
+          ^
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowFilters(true)}
-            className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2 rounded-full text-sm hover:border-green-400"
-          >
-            Filter
-          </button>
-
-          <button
-            onClick={() => setShowLists(true)}
-            className="relative text-slate-300 hover:text-white text-sm"
-          >
-            Lists
-
-            {totalSaved > 0 && (
-              <span className="ml-2 bg-slate-800 text-slate-300 px-2 py-1 rounded-full text-xs">
-                {totalSaved}
-              </span>
-            )}
-          </button>
+        <div>
+          <h1 className="font-black text-lg leading-none">StockSwipe</h1>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {selectedFilterLabel} deck
+          </p>
         </div>
-      </header>
-    );
-  }
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setShowFilters(true)}
+          className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2 rounded-full text-sm hover:border-green-400"
+        >
+          Filter
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveListTab("watchlist");
+            setShowLists(true);
+          }}
+          className="relative text-slate-300 hover:text-white text-sm"
+        >
+          Lists
+
+          {totalSaved > 0 && (
+            <span className="ml-2 bg-slate-800 text-slate-300 px-2 py-1 rounded-full text-xs">
+              {totalSaved}
+            </span>
+          )}
+        </button>
+      </div>
+    </header>
+  );
+}
 
   function FilterModal() {
     if (!showFilters) return null;
@@ -2742,11 +3139,14 @@ export default function Home() {
 
             <div className="flex flex-col gap-3 mt-8">
               <button
-                onClick={() => setShowFilters(true)}
-                className="bg-green-400 text-black px-6 py-3 rounded-full font-bold"
-              >
-                Change Filter
-              </button>
+                onClick={() => {
+                  setActiveListTab("watchlist");
+                  setShowLists(true);
+              }}
+              className="border border-slate-700 text-slate-300 px-6 py-3 rounded-full"
+            >   
+              Open Lists
+            </button>
 
               <button
                 onClick={() => setShowLists(true)}
@@ -2905,7 +3305,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setActiveMetricHelp("matchScore")}
-                  className="h-6 w-6 rounded-full border border-slate-400 bg-slate-800 text-slate-200 text-xs font-bold flex items-center justify-center hover:border-green-400 hover:text-green-400 transition"
+                  className={helpButtonClass}
                 >
                   ?
                 </button>
